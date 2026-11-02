@@ -1,0 +1,10 @@
+node_modules/
+.env
+data/db.json
+data/*.tmp
+uploads/documents/*
+!uploads/documents/.gitkeep
+uploads/motors/*
+!uploads/motors/.gitkeep
+coverage/
+.DS_Store

@@ -1,0 +1,1243 @@
+{
+  "users": [
+    {
+      "id": 1,
+      "name": "Ilham Ramadhan (Demo)",
+      "email": "demo@rodakita.id",
+      "phone": "081234567890",
+      "address": "Jl. Sunset Road No. 88, Kuta, Bali",
+      "role": "customer",
+      "passwordHash": "$2b$10$s01iUUEugagZ83sldBj4p.ZF8XsSlGOKVUlLVZeeuvGWIHau9pJHa",
+      "documents": {
+        "ktp": "verified",
+        "sim": "verified"
+      },
+      "preferences": {
+        "emailNotif": true,
+        "whatsappNotif": true,
+        "promo": false
+      },
+      "createdAt": "2026-01-15T08:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "name": "Budi Santoso",
+      "email": "budi@gmail.com",
+      "phone": "081987654321",
+      "address": "Jl. Malioboro No. 12, Yogyakarta",
+      "role": "customer",
+      "passwordHash": "$2b$10$s01iUUEugagZ83sldBj4p.P1dkj9rtWKLBdvM.i1GfEEW1vJEgCn.",
+      "documents": {
+        "ktp": "not_uploaded",
+        "sim": "not_uploaded"
+      },
+      "preferences": {
+        "emailNotif": true,
+        "whatsappNotif": false,
+        "promo": true
+      },
+      "createdAt": "2026-03-10T10:30:00.000Z"
+    },
+    {
+      "id": 3,
+      "name": "Admin RodaKita",
+      "email": "admin@rodakita.id",
+      "phone": "08111222333",
+      "address": "Kantor Pusat RodaKita, Jakarta",
+      "role": "admin",
+      "passwordHash": "$2b$10$s01iUUEugagZ83sldBj4p.2iZuh2SDHjz4mWJPM/FHZT5M.Ul9MWK",
+      "documents": {
+        "ktp": "verified",
+        "sim": "verified"
+      },
+      "preferences": {
+        "emailNotif": true,
+        "whatsappNotif": true,
+        "promo": true
+      },
+      "createdAt": "2025-12-01T00:00:00.000Z"
+    },
+    {
+      "id": 4,
+      "name": "Ahmad Fauzi (Staff)",
+      "email": "staff@rodakita.id",
+      "phone": "081299887766",
+      "address": "Jl. Raya Seminyak No. 12, Bali",
+      "role": "staff",
+      "passwordHash": "$2b$10$A25MvZU2hfwU1iJgX4vX.Om33ZJZ0Ph4beVlNvZnE5TeMKq8Z5YHG",
+      "documents": {
+        "ktp": "verified",
+        "sim": "verified"
+      },
+      "preferences": {
+        "emailNotif": true,
+        "whatsappNotif": true,
+        "promo": false
+      },
+      "createdAt": "2026-02-15T09:00:00.000Z"
+    },
+    {
+      "id": 6,
+      "name": "Valdi Iqbal",
+      "email": "valdi@rodakita.id",
+      "phone": "081233445566",
+      "address": "Jl. Sunset Road No. 100, Kuta, Bali",
+      "role": "customer",
+      "passwordHash": "$2b$10$s01iUUEugagZ83sldBj4p.2iZuh2SDHjz4mWJPM/FHZT5M.Ul9MWK",
+      "documents": {
+        "ktp": "verified",
+        "sim": "verified"
+      },
+      "preferences": {
+        "emailNotif": true,
+        "whatsappNotif": true,
+        "promo": true
+      },
+      "createdAt": "2025-11-01T00:00:00.000Z"
+    }
+  ],
+  "motors": [
+    {
+      "id": 1,
+      "slug": "honda-beat",
+      "name": "Honda Beat",
+      "brand": "Honda",
+      "type": "matic",
+      "cc": 110,
+      "year": 2023,
+      "color": "Hitam Doff",
+      "transmission": "Otomatis",
+      "fuelCapacity": 4.2,
+      "pricePerDay": 75000,
+      "deposit": 200000,
+      "description": "Matic ringan dan irit untuk keliling kota. Mudah dikendarai pemula dengan bagasi yang lega.",
+      "features": [
+        "Irit BBM eSP",
+        "Bagasi 12 liter",
+        "Jok ergonomis",
+        "Gratis 2 Helm SNI + Jas Hujan"
+      ],
+      "images": [
+        "https://picsum.photos/seed/honda-beat-1/800/600",
+        "https://picsum.photos/seed/honda-beat-2/800/600",
+        "https://picsum.photos/seed/honda-beat-3/800/600",
+        "https://picsum.photos/seed/honda-beat-4/800/600"
+      ],
+      "status": "available",
+      "plate": "DK 1234 ***",
+      "popularity": 98,
+      "rating": 4.8,
+      "reviewCount": 3
+    },
+    {
+      "id": 2,
+      "slug": "honda-scoopy",
+      "name": "Honda Scoopy",
+      "brand": "Honda",
+      "type": "matic",
+      "cc": 110,
+      "year": 2023,
+      "color": "Krem Klasik",
+      "transmission": "Otomatis",
+      "fuelCapacity": 4.2,
+      "pricePerDay": 85000,
+      "deposit": 200000,
+      "description": "Gaya retro yang manis dan lincah. Pilihan favorit untuk jalan santai berdua menikmati sore.",
+      "features": [
+        "Desain retro stylish",
+        "Smart Key System",
+        "USB Power Charger",
+        "Gratis 2 Helm SNI"
+      ],
+      "images": [
+        "https://picsum.photos/seed/honda-scoopy-1/800/600",
+        "https://picsum.photos/seed/honda-scoopy-2/800/600",
+        "https://picsum.photos/seed/honda-scoopy-3/800/600",
+        "https://picsum.photos/seed/honda-scoopy-4/800/600"
+      ],
+      "status": "available",
+      "plate": "DK 2345 ***",
+      "popularity": 95,
+      "rating": 4.9,
+      "reviewCount": 3
+    },
+    {
+      "id": 3,
+      "slug": "honda-vario-160",
+      "name": "Honda Vario 160",
+      "brand": "Honda",
+      "type": "matic",
+      "cc": 160,
+      "year": 2023,
+      "color": "Matte Blue",
+      "transmission": "Otomatis",
+      "fuelCapacity": 5.5,
+      "pricePerDay": 110000,
+      "deposit": 200000,
+      "description": "Performa mesin 160cc bertenaga dan stabil untuk jarak menengah hingga jauh.",
+      "features": [
+        "Mesin 160cc 4 katup",
+        "Rem Cakram ABS",
+        "Lampu Full LED",
+        "Smart Key"
+      ],
+      "images": [
+        "https://picsum.photos/seed/honda-vario-160-1/800/600",
+        "https://picsum.photos/seed/honda-vario-160-2/800/600",
+        "https://picsum.photos/seed/honda-vario-160-3/800/600",
+        "https://picsum.photos/seed/honda-vario-160-4/800/600"
+      ],
+      "status": "available",
+      "plate": "DK 3456 ***",
+      "popularity": 92,
+      "rating": 4.8,
+      "reviewCount": 2
+    },
+    {
+      "id": 4,
+      "slug": "honda-pcx-160",
+      "name": "Honda PCX 160",
+      "brand": "Honda",
+      "type": "matic",
+      "cc": 160,
+      "year": 2024,
+      "color": "Putih Mutiara",
+      "transmission": "Otomatis",
+      "fuelCapacity": 8.1,
+      "pricePerDay": 140000,
+      "deposit": 250000,
+      "description": "Skutik premium dengan kenyamanan maksimal, pijakan kaki luas, dan tangki BBM besar.",
+      "features": [
+        "Posisi berkendara rileks",
+        "Bagasi 30 liter ekstra lega",
+        "Traction Control HSTC",
+        "USB Charger"
+      ],
+      "images": [
+        "https://picsum.photos/seed/honda-pcx-160-1/800/600",
+        "https://picsum.photos/seed/honda-pcx-160-2/800/600",
+        "https://picsum.photos/seed/honda-pcx-160-3/800/600",
+        "https://picsum.photos/seed/honda-pcx-160-4/800/600"
+      ],
+      "status": "available",
+      "plate": "DK 4567 ***",
+      "popularity": 94,
+      "rating": 4.9,
+      "reviewCount": 2
+    },
+    {
+      "id": 5,
+      "slug": "honda-adv-160",
+      "name": "Honda ADV 160",
+      "brand": "Honda",
+      "type": "matic",
+      "cc": 160,
+      "year": 2024,
+      "color": "Merah Doff",
+      "transmission": "Otomatis",
+      "fuelCapacity": 8.1,
+      "pricePerDay": 155000,
+      "deposit": 250000,
+      "description": "Skutik adventure tangguh siap melibas segala medan jalan aspal maupun semi offroad perkotaan.",
+      "features": [
+        "Windscreen adjustable",
+        "Suspensi Subtank Showa",
+        "Ban Dual Purpose",
+        "Bagasi 30 liter"
+      ],
+      "images": [
+        "https://picsum.photos/seed/honda-adv-160-1/800/600",
+        "https://picsum.photos/seed/honda-adv-160-2/800/600",
+        "https://picsum.photos/seed/honda-adv-160-3/800/600",
+        "https://picsum.photos/seed/honda-adv-160-4/800/600"
+      ],
+      "status": "available",
+      "plate": "DK 5678 ***",
+      "popularity": 93,
+      "rating": 4.9,
+      "reviewCount": 2
+    },
+    {
+      "id": 6,
+      "slug": "yamaha-nmax-155",
+      "name": "Yamaha NMAX 155",
+      "brand": "Yamaha",
+      "type": "matic",
+      "cc": 155,
+      "year": 2023,
+      "color": "Hitam Emas",
+      "transmission": "Otomatis",
+      "fuelCapacity": 7.1,
+      "pricePerDay": 135000,
+      "deposit": 250000,
+      "description": "Maxi scooter paling populer, posisi berkendara nyaman dan akselerasi responsif Variable Valve Actuation.",
+      "features": [
+        "Mesin Blue Core VVA",
+        "Traction Control System",
+        "Y-Connect Bluetooth",
+        "Bagasi muat helm full face"
+      ],
+      "images": [
+        "https://picsum.photos/seed/yamaha-nmax-155-1/800/600",
+        "https://picsum.photos/seed/yamaha-nmax-155-2/800/600",
+        "https://picsum.photos/seed/yamaha-nmax-155-3/800/600",
+        "https://picsum.photos/seed/yamaha-nmax-155-4/800/600"
+      ],
+      "status": "available",
+      "plate": "DK 6789 ***",
+      "popularity": 99,
+      "rating": 4.9,
+      "reviewCount": 3
+    },
+    {
+      "id": 7,
+      "slug": "yamaha-aerox-155",
+      "name": "Yamaha Aerox 155",
+      "brand": "Yamaha",
+      "type": "matic",
+      "cc": 155,
+      "year": 2023,
+      "color": "Cyber City",
+      "transmission": "Otomatis",
+      "fuelCapacity": 5.5,
+      "pricePerDay": 125000,
+      "deposit": 250000,
+      "description": "Tampilan sporty agresif dengan power to weight ratio terbaik di kelasnya.",
+      "features": [
+        "Desain Super Sport",
+        "Speedometer Digital Modern",
+        "Smart Motor Generator",
+        "Smart Key"
+      ],
+      "images": [
+        "https://picsum.photos/seed/yamaha-aerox-155-1/800/600",
+        "https://picsum.photos/seed/yamaha-aerox-155-2/800/600",
+        "https://picsum.photos/seed/yamaha-aerox-155-3/800/600",
+        "https://picsum.photos/seed/yamaha-aerox-155-4/800/600"
+      ],
+      "status": "available",
+      "plate": "DK 7890 ***",
+      "popularity": 91,
+      "rating": 4.7,
+      "reviewCount": 2
+    },
+    {
+      "id": 8,
+      "slug": "yamaha-fazzio",
+      "name": "Yamaha Fazzio",
+      "brand": "Yamaha",
+      "type": "matic",
+      "cc": 125,
+      "year": 2023,
+      "color": "Tosca",
+      "transmission": "Otomatis",
+      "fuelCapacity": 5.1,
+      "pricePerDay": 90000,
+      "deposit": 200000,
+      "description": "Skutik hybrid trendi dan ramah lingkungan dengan akselerasi halus di putaran awal.",
+      "features": [
+        "Mesin Blue Core Hybrid",
+        "Desain Klasik Modern",
+        "Double Hook Carabiner",
+        "Smart Key"
+      ],
+      "images": [
+        "https://picsum.photos/seed/yamaha-fazzio-1/800/600",
+        "https://picsum.photos/seed/yamaha-fazzio-2/800/600",
+        "https://picsum.photos/seed/yamaha-fazzio-3/800/600",
+        "https://picsum.photos/seed/yamaha-fazzio-4/800/600"
+      ],
+      "status": "available",
+      "plate": "DK 8901 ***",
+      "popularity": 88,
+      "rating": 4.8,
+      "reviewCount": 2
+    },
+    {
+      "id": 9,
+      "slug": "honda-crf150l",
+      "name": "Honda CRF150L",
+      "brand": "Honda",
+      "type": "trail",
+      "cc": 150,
+      "year": 2023,
+      "color": "Extreme Red",
+      "transmission": "Manual",
+      "fuelCapacity": 7.2,
+      "pricePerDay": 175000,
+      "deposit": 300000,
+      "description": "Motor trail tangguh untuk menjelajah bukit, pantai tersembunyi, dan jalan berbatu.",
+      "features": [
+        "Suspensi Inverted Front Fork",
+        "Ban pacul dual purpose",
+        "Mesin 150cc PGM-FI bandel",
+        "Bodi tangguh"
+      ],
+      "images": [
+        "https://picsum.photos/seed/honda-crf150l-1/800/600",
+        "https://picsum.photos/seed/honda-crf150l-2/800/600",
+        "https://picsum.photos/seed/honda-crf150l-3/800/600",
+        "https://picsum.photos/seed/honda-crf150l-4/800/600"
+      ],
+      "status": "available",
+      "plate": "DK 9012 ***",
+      "popularity": 89,
+      "rating": 4.8,
+      "reviewCount": 2
+    },
+    {
+      "id": 10,
+      "slug": "kawasaki-klx-150",
+      "name": "Kawasaki KLX 150",
+      "brand": "Kawasaki",
+      "type": "trail",
+      "cc": 150,
+      "year": 2022,
+      "color": "Hijau Kawasaki",
+      "transmission": "Manual",
+      "fuelCapacity": 6.9,
+      "pricePerDay": 165000,
+      "deposit": 300000,
+      "description": "Pelopor motor trail ringan yang terbukti tangguh dan lincah bermanuver di alam bebas.",
+      "features": [
+        "Rangka perimeter kokoh",
+        "Bobot ringan lincah",
+        "Suspensi travel tinggi",
+        "Rem cakram petal"
+      ],
+      "images": [
+        "https://picsum.photos/seed/kawasaki-klx-150-1/800/600",
+        "https://picsum.photos/seed/kawasaki-klx-150-2/800/600",
+        "https://picsum.photos/seed/kawasaki-klx-150-3/800/600",
+        "https://picsum.photos/seed/kawasaki-klx-150-4/800/600"
+      ],
+      "status": "maintenance",
+      "plate": "DK 1122 ***",
+      "popularity": 85,
+      "rating": 4.7,
+      "reviewCount": 2
+    },
+    {
+      "id": 11,
+      "slug": "yamaha-wr155r",
+      "name": "Yamaha WR155R",
+      "brand": "Yamaha",
+      "type": "trail",
+      "cc": 155,
+      "year": 2023,
+      "color": "Biru Racing",
+      "transmission": "Manual",
+      "fuelCapacity": 8.1,
+      "pricePerDay": 190000,
+      "deposit": 300000,
+      "description": "Motor trail paling bertenaga di kelas 150cc dengan teknologi VVA dan radiator pendingin cairan.",
+      "features": [
+        "Mesin VVA 155cc bertenaga",
+        "Pendingin cairan (radiator)",
+        "LCD Multi-Information Display",
+        "Kapasitas tangki 8.1 L"
+      ],
+      "images": [
+        "https://picsum.photos/seed/yamaha-wr155r-1/800/600",
+        "https://picsum.photos/seed/yamaha-wr155r-2/800/600",
+        "https://picsum.photos/seed/yamaha-wr155r-3/800/600",
+        "https://picsum.photos/seed/yamaha-wr155r-4/800/600"
+      ],
+      "status": "available",
+      "plate": "DK 2233 ***",
+      "popularity": 87,
+      "rating": 4.9,
+      "reviewCount": 2
+    },
+    {
+      "id": 12,
+      "slug": "honda-cb150r",
+      "name": "Honda CB150R Streetfire",
+      "brand": "Honda",
+      "type": "sport",
+      "cc": 150,
+      "year": 2023,
+      "color": "Hitam Merah",
+      "transmission": "Manual",
+      "fuelCapacity": 12,
+      "pricePerDay": 130000,
+      "deposit": 250000,
+      "description": "Naked sport lincah dengan posisi berkendara tegap dan suspensi depan inverted fork besar.",
+      "features": [
+        "Suspensi depan Upside Down",
+        "Lampu Full LED agresif",
+        "Panel meter full digital",
+        "Rangka truss frame"
+      ],
+      "images": [
+        "https://picsum.photos/seed/honda-cb150r-1/800/600",
+        "https://picsum.photos/seed/honda-cb150r-2/800/600",
+        "https://picsum.photos/seed/honda-cb150r-3/800/600",
+        "https://picsum.photos/seed/honda-cb150r-4/800/600"
+      ],
+      "status": "available",
+      "plate": "DK 3344 ***",
+      "popularity": 82,
+      "rating": 4.7,
+      "reviewCount": 2
+    },
+    {
+      "id": 13,
+      "slug": "suzuki-satria-f150",
+      "name": "Suzuki Satria F150",
+      "brand": "Suzuki",
+      "type": "manual",
+      "cc": 150,
+      "year": 2022,
+      "color": "Titan Black",
+      "transmission": "Manual",
+      "fuelCapacity": 4,
+      "pricePerDay": 100000,
+      "deposit": 200000,
+      "description": "Underbone legendaris dengan mesin DOHC 4-valve bertenaga tajam dan bodi super ramping.",
+      "features": [
+        "Mesin DOHC Overbore murni",
+        "Shuttered key system",
+        "1-push electric starter",
+        "Spidometer digital"
+      ],
+      "images": [
+        "https://picsum.photos/seed/suzuki-satria-f150-1/800/600",
+        "https://picsum.photos/seed/suzuki-satria-f150-2/800/600",
+        "https://picsum.photos/seed/suzuki-satria-f150-3/800/600",
+        "https://picsum.photos/seed/suzuki-satria-f150-4/800/600"
+      ],
+      "status": "maintenance",
+      "plate": "DK 4455 ***",
+      "popularity": 80,
+      "rating": 4.6,
+      "reviewCount": 2
+    },
+    {
+      "id": 14,
+      "slug": "vespa-sprint-150-i-get",
+      "name": "Vespa Sprint 150 i-Get ABS",
+      "brand": "Vespa",
+      "type": "matic",
+      "cc": 150,
+      "year": 2023,
+      "color": "Kuning Giallo Sole",
+      "transmission": "Otomatis",
+      "fuelCapacity": 7,
+      "pricePerDay": 250000,
+      "deposit": 350000,
+      "description": "Ikon gaya Italia premium dengan bodi baja elegan, lampu hexagonal khas, dan pengereman ABS.",
+      "features": [
+        "Bodi full monocoque baja",
+        "Lampu heksagonal ikonik",
+        "Sistem rem ABS depan",
+        "Port USB di laci depan"
+      ],
+      "images": [
+        "https://picsum.photos/seed/vespa-sprint-150-i-get-1/800/600",
+        "https://picsum.photos/seed/vespa-sprint-150-i-get-2/800/600",
+        "https://picsum.photos/seed/vespa-sprint-150-i-get-3/800/600",
+        "https://picsum.photos/seed/vespa-sprint-150-i-get-4/800/600"
+      ],
+      "status": "available",
+      "plate": "DK 5566 ***",
+      "popularity": 97,
+      "rating": 5,
+      "reviewCount": 3
+    }
+  ],
+  "reviews": [
+    {
+      "id": 1,
+      "motorId": 1,
+      "userId": 1,
+      "userName": "Rian Pratama",
+      "userAvatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Beat-nya sangat irit dan bersih! Keliling Kuta-Seminyak dua hari cuma isi bensin sekali.",
+      "date": "2026-10-06"
+    },
+    {
+      "id": 2,
+      "motorId": 1,
+      "userId": 2,
+      "userName": "Dewi Lestari",
+      "userAvatar": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Pelayanan antar ke hotel tepat waktu. Motor nyaman dikendarai.",
+      "date": "2026-10-10"
+    },
+    {
+      "id": 3,
+      "motorId": 1,
+      "userId": 1,
+      "userName": "Fajar Nugraha",
+      "userAvatar": "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 4,
+      "comment": "Kondisi mesin bagus, rem pakem. Helm yang dikasih bersih dan wangi.",
+      "date": "2026-10-16"
+    },
+    {
+      "id": 4,
+      "motorId": 2,
+      "userId": 1,
+      "userName": "Siti Rahma",
+      "userAvatar": "https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Scoopy-nya lucu banget warnanya, foto-foto di kafe Canggu jadi estetik!",
+      "date": "2026-10-02"
+    },
+    {
+      "id": 5,
+      "motorId": 2,
+      "userId": 2,
+      "userName": "Yoga Permana",
+      "userAvatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Istri senang banget naik Scoopy ini. Sangat rekomen untuk pasangan.",
+      "date": "2026-10-12"
+    },
+    {
+      "id": 6,
+      "motorId": 2,
+      "userId": 1,
+      "userName": "Nadia Putri",
+      "userAvatar": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Sangat praktis dengan smart key-nya. Bagasi cukup buat tas belanjaan.",
+      "date": "2026-10-19"
+    },
+    {
+      "id": 7,
+      "motorId": 3,
+      "userId": 1,
+      "userName": "Bambang Kusuma",
+      "userAvatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Tarikan Vario 160 mantap sekali untuk tanjakan Bedugul dan Kintamani.",
+      "date": "2026-10-05"
+    },
+    {
+      "id": 8,
+      "motorId": 3,
+      "userId": 2,
+      "userName": "Agus Setiawan",
+      "userAvatar": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Unit terawat seperti motor baru keluar dealer. Top markotop!",
+      "date": "2026-10-15"
+    },
+    {
+      "id": 9,
+      "motorId": 4,
+      "userId": 1,
+      "userName": "Rendy Wijaya",
+      "userAvatar": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "PCX 160 sangat nyaman buat touring keliling pulau. Punggung tidak pegal sama sekali.",
+      "date": "2026-09-29"
+    },
+    {
+      "id": 10,
+      "motorId": 4,
+      "userId": 2,
+      "userName": "Maya Anggraini",
+      "userAvatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Bagasi super lega, helm dan koper ransel masuk semua. Mantap!",
+      "date": "2026-10-13"
+    },
+    {
+      "id": 11,
+      "motorId": 5,
+      "userId": 1,
+      "userName": "Danang Tri",
+      "userAvatar": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "ADV 160 suspensinya empuk luar biasa. Lewat jalanan rusak Ubud terasa mulus.",
+      "date": "2026-10-03"
+    },
+    {
+      "id": 12,
+      "motorId": 5,
+      "userId": 2,
+      "userName": "Kevin Sanjaya",
+      "userAvatar": "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Gagah dan nyaman. Selama 3 hari sewa tidak ada kendala sama sekali.",
+      "date": "2026-10-17"
+    },
+    {
+      "id": 13,
+      "motorId": 6,
+      "userId": 1,
+      "userName": "Hendro Siswanto",
+      "userAvatar": "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "NMAX 155 selalu jadi pilihan favorit. Mesin halus, tenaga padat.",
+      "date": "2026-09-24"
+    },
+    {
+      "id": 14,
+      "motorId": 6,
+      "userId": 2,
+      "userName": "Larasati",
+      "userAvatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Proses sewa cepat tanpa ribet. Deposit langsung kembali setelah selesai.",
+      "date": "2026-10-09"
+    },
+    {
+      "id": 15,
+      "motorId": 6,
+      "userId": 1,
+      "userName": "Doni Firmansyah",
+      "userAvatar": "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Motor sangat sehat, bensin irit untuk motor 155cc. Puas banget.",
+      "date": "2026-10-20"
+    },
+    {
+      "id": 16,
+      "motorId": 7,
+      "userId": 1,
+      "userName": "Galih Prakoso",
+      "userAvatar": "https://images.unsplash.com/photo-1513956589380-bad6acb9b9d4?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Aerox tarikannya spontan abis. Desain keren buat anak muda.",
+      "date": "2026-10-07"
+    },
+    {
+      "id": 17,
+      "motorId": 7,
+      "userId": 2,
+      "userName": "Ari Wibowo",
+      "userAvatar": "https://images.unsplash.com/photo-1508214751196-bcfd4ca60f91?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 4,
+      "comment": "Sangat asik buat jalanan perkotaan. Lampu LED-nya terang di malam hari.",
+      "date": "2026-10-18"
+    },
+    {
+      "id": 18,
+      "motorId": 8,
+      "userId": 1,
+      "userName": "Cynthia Amanda",
+      "userAvatar": "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Fazzio-nya enteng banget disetir. Suara mesin nyaris tidak terdengar!",
+      "date": "2026-09-30"
+    },
+    {
+      "id": 19,
+      "motorId": 8,
+      "userId": 2,
+      "userName": "Dian Safitri",
+      "userAvatar": "https://images.unsplash.com/photo-1548142813-c348350df52b?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Warna tosca-nya eye-catching. Bensin super hemat!",
+      "date": "2026-10-14"
+    },
+    {
+      "id": 20,
+      "motorId": 9,
+      "userId": 1,
+      "userName": "Bagus Sadewa",
+      "userAvatar": "https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "CRF150L sangat siap tempur! Puas banget main ke Pantai Nyang-Nyang.",
+      "date": "2026-10-04"
+    },
+    {
+      "id": 21,
+      "motorId": 9,
+      "userId": 2,
+      "userName": "Yusuf Maulana",
+      "userAvatar": "https://images.unsplash.com/photo-1463453091185-61582044d556?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Kondisi ban pacul masih tebal. Gearset dan rantai bersih terawat.",
+      "date": "2026-10-19"
+    },
+    {
+      "id": 22,
+      "motorId": 10,
+      "userId": 1,
+      "userName": "Pandu Dewanata",
+      "userAvatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "KLX 150 enteng dan lincah banget. Cocok buat solo explorer.",
+      "date": "2026-09-26"
+    },
+    {
+      "id": 23,
+      "motorId": 10,
+      "userId": 2,
+      "userName": "Irfan Hakim",
+      "userAvatar": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 4,
+      "comment": "Motor sehat walau sudah jam terbang tinggi. Layanan ramah.",
+      "date": "2026-10-08"
+    },
+    {
+      "id": 24,
+      "motorId": 11,
+      "userId": 1,
+      "userName": "Ahmad Fauzi",
+      "userAvatar": "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "WR155R tenaganya luar biasa, radiator bikin mesin adem di jalanan terjal.",
+      "date": "2026-10-11"
+    },
+    {
+      "id": 25,
+      "motorId": 11,
+      "userId": 2,
+      "userName": "Eko Wahyudi",
+      "userAvatar": "https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Motor trail terbaik yang pernah saya sewa. Unit mulus no PR.",
+      "date": "2026-10-21"
+    },
+    {
+      "id": 26,
+      "motorId": 12,
+      "userId": 1,
+      "userName": "Satria Baja",
+      "userAvatar": "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "CB150R posisi ridingnya mantap dan handling rigid berkat USD Showa.",
+      "date": "2026-10-05"
+    },
+    {
+      "id": 27,
+      "motorId": 12,
+      "userId": 2,
+      "userName": "Bayu Aji",
+      "userAvatar": "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 4,
+      "comment": "Kopling enteng dan transmisi halus. Siap dipakai jarak jauh.",
+      "date": "2026-10-17"
+    },
+    {
+      "id": 28,
+      "motorId": 13,
+      "userId": 1,
+      "userName": "Dicky Candra",
+      "userAvatar": "https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Satria F150 DOHC tarikannya beneran jambak. Nostalgia masa muda!",
+      "date": "2026-09-28"
+    },
+    {
+      "id": 29,
+      "motorId": 13,
+      "userId": 2,
+      "userName": "Surya Kencana",
+      "userAvatar": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 4,
+      "comment": "Kondisi mesin kering tidak ada rembesan oli. Mantul.",
+      "date": "2026-10-12"
+    },
+    {
+      "id": 30,
+      "motorId": 14,
+      "userId": 1,
+      "userName": "Jessica Veranda",
+      "userAvatar": "https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Vespa Sprint 150 juara banget! Semua mata tertuju saat lewat jalanan Seminyak.",
+      "date": "2026-10-03"
+    },
+    {
+      "id": 31,
+      "motorId": 14,
+      "userId": 2,
+      "userName": "Nicholas Sean",
+      "userAvatar": "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Vespa sangat wangi dan bersih. Rem ABS bikin tenang di jalanan basah.",
+      "date": "2026-10-15"
+    },
+    {
+      "id": 32,
+      "motorId": 14,
+      "userId": 1,
+      "userName": "Gita Gutawa",
+      "userAvatar": "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&h=120&q=80",
+      "rating": 5,
+      "comment": "Pengalaman rental motor paling berkesan. Pelayanan RodaKita bintang lima!",
+      "date": "2026-10-22"
+    }
+  ],
+  "bookings": [
+    {
+      "id": 1,
+      "code": "RK-10293",
+      "userId": 1,
+      "motorId": 1,
+      "startDate": "2026-10-12",
+      "endDate": "2026-10-15",
+      "days": 3,
+      "pricePerDay": 75000,
+      "subtotal": 225000,
+      "discount": 0,
+      "deliveryFee": 0,
+      "addOnsTotal": 0,
+      "deposit": 200000,
+      "total": 225000,
+      "status": "completed",
+      "pickup": "store",
+      "payment": "transfer",
+      "renter": {
+        "name": "Ilham Ramadhan (Demo)",
+        "phone": "081234567890",
+        "email": "demo@rodakita.id",
+        "idNumber": "3201234567890001",
+        "notes": "Ambil pagi jam 08.00"
+      },
+      "createdAt": "2026-10-11T08:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "code": "RK-20481",
+      "userId": 1,
+      "motorId": 4,
+      "startDate": "2026-10-19",
+      "endDate": "2026-10-22",
+      "days": 3,
+      "pricePerDay": 140000,
+      "subtotal": 420000,
+      "discount": 0,
+      "deliveryFee": 50000,
+      "addOnsTotal": 30000,
+      "deposit": 250000,
+      "total": 500000,
+      "status": "completed",
+      "pickup": "delivery",
+      "payment": "qris",
+      "renter": {
+        "name": "Ilham Ramadhan (Demo)",
+        "phone": "081234567890",
+        "email": "demo@rodakita.id",
+        "idNumber": "3201234567890001",
+        "notes": "Antar ke Bandara I Gusti Ngurah Rai"
+      },
+      "createdAt": "2026-10-18T10:15:00.000Z"
+    },
+    {
+      "id": 3,
+      "code": "RK-30592",
+      "userId": 1,
+      "motorId": 6,
+      "startDate": "2026-10-23",
+      "endDate": "2026-10-27",
+      "days": 4,
+      "pricePerDay": 135000,
+      "subtotal": 540000,
+      "discount": 50000,
+      "deliveryFee": 0,
+      "addOnsTotal": 40000,
+      "deposit": 250000,
+      "total": 530000,
+      "status": "active",
+      "pickup": "store",
+      "payment": "transfer",
+      "renter": {
+        "name": "Ilham Ramadhan (Demo)",
+        "phone": "081234567890",
+        "email": "demo@rodakita.id",
+        "idNumber": "3201234567890001",
+        "notes": "Sedang berjalan aktif keliling Ubud"
+      },
+      "createdAt": "2026-10-22T14:20:00.000Z"
+    },
+    {
+      "id": 4,
+      "code": "RK-40613",
+      "userId": 1,
+      "motorId": 14,
+      "startDate": "2026-10-28",
+      "endDate": "2026-10-31",
+      "days": 3,
+      "pricePerDay": 250000,
+      "subtotal": 750000,
+      "discount": 20000,
+      "deliveryFee": 25000,
+      "addOnsTotal": 15000,
+      "deposit": 350000,
+      "total": 770000,
+      "status": "confirmed",
+      "pickup": "delivery",
+      "payment": "transfer",
+      "renter": {
+        "name": "Ilham Ramadhan (Demo)",
+        "phone": "081234567890",
+        "email": "demo@rodakita.id",
+        "idNumber": "3201234567890001",
+        "notes": "Terkonfirmasi lunas, siap diambil akhir pekan"
+      },
+      "createdAt": "2026-10-23T11:00:00.000Z"
+    },
+    {
+      "id": 5,
+      "code": "RK-50724",
+      "userId": 1,
+      "motorId": 3,
+      "startDate": "2026-11-03",
+      "endDate": "2026-11-05",
+      "days": 2,
+      "pricePerDay": 110000,
+      "subtotal": 220000,
+      "discount": 0,
+      "deliveryFee": 0,
+      "addOnsTotal": 0,
+      "deposit": 200000,
+      "total": 220000,
+      "status": "pending",
+      "pickup": "store",
+      "payment": "transfer",
+      "renter": {
+        "name": "Ilham Ramadhan (Demo)",
+        "phone": "081234567890",
+        "email": "demo@rodakita.id",
+        "idNumber": "3201234567890001",
+        "notes": "Menunggu transfer rekening BCA"
+      },
+      "createdAt": "2026-10-24T09:00:00.000Z"
+    },
+    {
+      "id": 6,
+      "code": "RK-60835",
+      "userId": 2,
+      "motorId": 2,
+      "startDate": "2026-10-26",
+      "endDate": "2026-10-29",
+      "days": 3,
+      "pricePerDay": 85000,
+      "subtotal": 255000,
+      "discount": 0,
+      "deliveryFee": 0,
+      "addOnsTotal": 0,
+      "deposit": 200000,
+      "total": 255000,
+      "status": "confirmed",
+      "pickup": "store",
+      "payment": "qris",
+      "renter": {
+        "name": "Budi Santoso",
+        "phone": "081987654321",
+        "email": "budi@gmail.com",
+        "idNumber": "3401234567890002",
+        "notes": "Sewa liburan keluarga"
+      },
+      "createdAt": "2026-10-23T16:00:00.000Z"
+    },
+    {
+      "id": 7,
+      "code": "RK-70946",
+      "userId": 2,
+      "motorId": 5,
+      "startDate": "2026-10-09",
+      "endDate": "2026-10-11",
+      "days": 2,
+      "pricePerDay": 155000,
+      "subtotal": 310000,
+      "discount": 0,
+      "deliveryFee": 0,
+      "addOnsTotal": 0,
+      "deposit": 250000,
+      "total": 310000,
+      "status": "completed",
+      "pickup": "store",
+      "payment": "cash",
+      "renter": {
+        "name": "Budi Santoso",
+        "phone": "081987654321",
+        "email": "budi@gmail.com",
+        "idNumber": "3401234567890002",
+        "notes": "Selesai tanpa kendala"
+      },
+      "createdAt": "2026-10-08T08:30:00.000Z"
+    },
+    {
+      "id": 8,
+      "code": "RK-81057",
+      "userId": 1,
+      "motorId": 9,
+      "startDate": "2026-10-16",
+      "endDate": "2026-10-18",
+      "days": 2,
+      "pricePerDay": 175000,
+      "subtotal": 350000,
+      "discount": 0,
+      "deliveryFee": 0,
+      "addOnsTotal": 0,
+      "deposit": 300000,
+      "total": 350000,
+      "status": "cancelled",
+      "pickup": "store",
+      "payment": "transfer",
+      "renter": {
+        "name": "Ilham Ramadhan (Demo)",
+        "phone": "081234567890",
+        "email": "demo@rodakita.id",
+        "idNumber": "3201234567890001",
+        "notes": "Batal karena jadwal mendadak berubah"
+      },
+      "createdAt": "2026-10-14T13:45:00.000Z"
+    }
+  ],
+  "serviceBlocks": [
+    {
+      "id": 1,
+      "motorId": 10,
+      "motorName": "Kawasaki KLX 150",
+      "reason": "Servis berkala: ganti oli mesin, servis karburator, dan penggantian kampas kopling",
+      "startDate": "2026-10-22",
+      "endDate": "2026-10-29",
+      "technician": "Pak Wayan",
+      "status": "in_progress"
+    },
+    {
+      "id": 2,
+      "motorId": 13,
+      "motorName": "Suzuki Satria F150",
+      "reason": "Penyetelan klep DOHC dan penggantian ban belakang",
+      "startDate": "2026-10-23",
+      "endDate": "2026-10-28",
+      "technician": "Pak Made",
+      "status": "in_progress"
+    },
+    {
+      "id": 3,
+      "motorId": 9,
+      "motorName": "Honda CRF150L",
+      "reason": "Inspeksi sistem injeksi PGM-FI dan kuras minyak rem",
+      "startDate": "2026-10-04",
+      "endDate": "2026-10-06",
+      "technician": "Pak Ketut",
+      "status": "completed"
+    }
+  ],
+  "promos": [
+    {
+      "id": 1,
+      "code": "HEMAT10",
+      "type": "percent",
+      "value": 10,
+      "maxDiscount": 50000,
+      "minDays": 2,
+      "minSubtotal": 0,
+      "requiresWeekend": false,
+      "validUntil": "2027-12-31",
+      "quota": 500,
+      "description": "Diskon 10% maksimal Rp 50.000 dengan durasi sewa minimal 2 hari"
+    },
+    {
+      "id": 2,
+      "code": "AKHIRPEKAN",
+      "type": "fixed",
+      "value": 20000,
+      "maxDiscount": 20000,
+      "minDays": 1,
+      "minSubtotal": 0,
+      "requiresWeekend": true,
+      "validUntil": "2027-12-31",
+      "quota": 500,
+      "description": "Potongan Rp 20.000 untuk sewa yang mencakup hari Sabtu atau Minggu"
+    }
+  ],
+  "favorites": [
+    {
+      "id": 1,
+      "userId": 1,
+      "motorId": 14,
+      "createdAt": "2026-10-19T10:00:00.000Z"
+    },
+    {
+      "id": 2,
+      "userId": 1,
+      "motorId": 6,
+      "createdAt": "2026-10-20T11:00:00.000Z"
+    },
+    {
+      "id": 3,
+      "userId": 1,
+      "motorId": 2,
+      "createdAt": "2026-10-21T12:00:00.000Z"
+    }
+  ],
+  "contacts": [
+    {
+      "id": 1,
+      "name": "Rudi Hartono",
+      "email": "rudi@yahoo.com",
+      "phone": "081298761234",
+      "message": "Halo admin, apakah ada diskon khusus untuk sewa bulanan motor NMAX?",
+      "createdAt": "2026-10-22T09:30:00.000Z",
+      "read": true
+    }
+  ],
+  "auditLogs": [],
+  "handovers": [],
+  "returns": [],
+  "bookingNotes": [],
+  "settings": null,
+  "addons": [],
+  "locations": [],
+  "pages": [],
+  "pageVersions": [],
+  "faqs": [],
+  "contentBlocks": [],
+  "pricingRules": [],
+  "discountTiers": [],
+  "renterProfiles": [
+    {
+      "userId": 1,
+      "fullNameKtp": "Ilham Ramadhan",
+      "birthDate": "1995-05-15",
+      "nikHash": "f9826ff09658a09e99555d41a5d0ca3df49190a229d6553e4fe4e4b2d45bfec7",
+      "nikLast4": "0001",
+      "addressKtp": "Jl. Sunset Road No. 88, Kuta, Bali",
+      "phoneE164": "+6281234567890",
+      "stayAddress": "Hotel Grand Kuta, Jl. Dewi Sri No. 10, Legian",
+      "emergencyName": "Siti Rahma",
+      "emergencyRelation": "pasangan",
+      "emergencyPhone": "+6281299998888",
+      "emergencyContact": {
+        "name": "Siti Rahma",
+        "relation": "pasangan",
+        "phone": "+6281299998888"
+      },
+      "termsVersionAccepted": 1,
+      "privacyVersionAccepted": 1,
+      "gpsConsentAt": "2026-01-15T08:00:00.000Z",
+      "completedAt": "2026-01-15T08:00:00.000Z",
+      "createdAt": "2026-01-15T08:00:00.000Z",
+      "updatedAt": "2026-01-15T08:00:00.000Z"
+    },
+    {
+      "userId": 2,
+      "fullNameKtp": "Budi Santoso",
+      "birthDate": "1998-08-20",
+      "nikHash": "fd7a5eea373808c3eb42668351be183c5e64111809d67e14d412035055739a12",
+      "nikLast4": "0002",
+      "addressKtp": "Jl. Malioboro No. 12, Yogyakarta",
+      "phoneE164": "+6281987654321",
+      "stayAddress": "Villa Seminyak Asri No. 4B, Kuta",
+      "emergencyName": "Joko Santoso",
+      "emergencyRelation": "saudara",
+      "emergencyPhone": "+6281812345678",
+      "emergencyContact": {
+        "name": "Joko Santoso",
+        "relation": "saudara",
+        "phone": "+6281812345678"
+      },
+      "termsVersionAccepted": 1,
+      "privacyVersionAccepted": 1,
+      "gpsConsentAt": "2026-03-10T10:30:00.000Z",
+      "completedAt": null,
+      "createdAt": "2026-03-10T10:30:00.000Z",
+      "updatedAt": "2026-03-10T10:30:00.000Z"
+    }
+  ]
+}

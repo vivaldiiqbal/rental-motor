@@ -1,0 +1,50 @@
+{
+  "name": "ilham.rental",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "dev:frontend": "vite",
+    "dev:backend": "cd backend && node server.js",
+    "build": "tsc -b && vite build",
+    "lint": "oxlint",
+    "preview": "vite preview",
+    "test:all": "bash scripts/test-all.sh",
+    "gps:simulate": "node backend/scripts/simulateGps.js"
+  },
+  "dependencies": {
+    "@types/leaflet": "^1.9.22",
+    "axios": "^1.20.0",
+    "date-fns": "^4.4.0",
+    "dompurify": "^3.4.17",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^1.61.0",
+    "react": "^18.3.1",
+    "react-day-picker": "^9.14.0",
+    "react-dom": "^18.3.1",
+    "react-helmet-async": "^2.0.5",
+    "react-hot-toast": "^2.6.1",
+    "react-router-dom": "^6.30.6",
+    "recharts": "^3.10.1"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^24.19.2",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^18.3.31",
+    "@types/react-dom": "^18.3.7",
+    "@vitejs/plugin-react": "^6.1.2",
+    "autocannon": "^8.0.0",
+    "autoprefixer": "^10.6.1",
+    "oxlint": "^1.88.0",
+    "pg": "^8.23.1",
+    "postcss": "^8.5.31",
+    "prettier": "^3.9.10",
+    "prettier-plugin-tailwindcss": "^0.8.1",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.4"
+  }
+}

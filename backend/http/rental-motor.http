@@ -1,0 +1,306 @@
+### ==============================================================================
+### KOLEKSI UJI ENDPOINT REST API RODAKITA (BAGIAN PUBLIK / PELANGGAN)
+### ==============================================================================
+
+@baseUrl = http://localhost:5001/api
+@authToken = {{login.response.body.data.token}}
+
+### ------------------------------------------------------------------------------
+### 1. HEALTH & META
+### ------------------------------------------------------------------------------
+
+### 1.1 Health Check Server
+GET {{baseUrl}}/health
+Accept: application/json
+
+### 1.2 Opsi Sewa Lengkap (Lokasi, Add-ons, Ongkir, Aturan)
+GET {{baseUrl}}/meta/rental-options
+Accept: application/json
+
+
+### ------------------------------------------------------------------------------
+### 2. AUTENTIKASI & PROFIL PENGGUNA
+### ------------------------------------------------------------------------------
+
+### 2.1 Registrasi Pengguna Baru
+POST {{baseUrl}}/auth/register
+Content-Type: application/json
+
+{
+  "name": "Bayu Pratama",
+  "email": "bayu.pratama@example.com",
+  "phone": "081234567891",
+  "password": "Password123"
+}
+
+### 2.2 Login Akun Demo Customer
+# @name login
+POST {{baseUrl}}/auth/login
+Content-Type: application/json
+
+{
+  "email": "demo@rodakita.id",
+  "password": "Demo12345"
+}
+
+### 2.3 Cek Profil Saya + Dokumen Status
+GET {{baseUrl}}/auth/me
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 2.4 Perbarui Profil & Kontak Darurat
+PUT {{baseUrl}}/auth/me
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "name": "Ilham Ramadhan",
+  "phone": "081234567890",
+  "emergencyContact": {
+    "name": "Ratna Dewi",
+    "phone": "081377788899"
+  }
+}
+
+### 2.5 Ganti Kata Sandi (204 No Content)
+PUT {{baseUrl}}/auth/password
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "currentPassword": "Demo12345",
+  "newPassword": "Demo12345_Baru"
+}
+
+### 2.6 Logout (Stateless 204)
+POST {{baseUrl}}/auth/logout
+Accept: application/json
+
+### 2.7 Lupa Kata Sandi (Pesan Netral)
+POST {{baseUrl}}/auth/forgot-password
+Content-Type: application/json
+
+{
+  "email": "demo@rodakita.id"
+}
+
+
+### ------------------------------------------------------------------------------
+### 3. KATALOG MOTORCYCLES (PUBLIK & FILTER)
+### ------------------------------------------------------------------------------
+
+### 3.1 Daftar Motor (Filter Multi-merek, Tipe, Tanggal Sewa, Sorting)
+GET {{baseUrl}}/motorcycles?brand=Honda,Yamaha&type=matic&start=2027-02-01&end=2027-02-04&availableOnly=true&sort=price_asc&page=1&limit=6
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 3.2 Metadata Filter (Brands, Types, Transmissions, Min/Max Price)
+GET {{baseUrl}}/motorcycles/filters
+Accept: application/json
+
+### 3.3 Motor Rekomendasi (Featured)
+GET {{baseUrl}}/motorcycles/featured?limit=6
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 3.4 Detail Motor by ID atau Slug
+GET {{baseUrl}}/motorcycles/honda-beat
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 3.5 Rentang Tanggal Terisi (Unavailable Dates)
+GET {{baseUrl}}/motorcycles/1/unavailable-dates
+Accept: application/json
+
+### 3.6 Cek Ketersediaan & Rekomendasi Tanggal Terdekat
+GET {{baseUrl}}/motorcycles/1/availability?start=2027-03-01&end=2027-03-04
+Accept: application/json
+
+### 3.7 Ulasan Motor & Distribusi Rating Bintang
+GET {{baseUrl}}/motorcycles/1/reviews?page=1&limit=10&sort=newest
+Accept: application/json
+
+### 3.8 Motor Serupa
+GET {{baseUrl}}/motorcycles/1/similar?limit=4
+Accept: application/json
+
+
+### ------------------------------------------------------------------------------
+### 4. PROMO & HARGA
+### ------------------------------------------------------------------------------
+
+### 4.1 Validasi Kode Promo
+POST {{baseUrl}}/promo/validate
+Content-Type: application/json
+
+{
+  "code": "HEMAT10",
+  "motorId": 1,
+  "start": "2027-04-01",
+  "end": "2027-04-04"
+}
+
+### 4.2 Simulasi Penawaran Harga (Quote) Tanpa Menyimpan
+POST {{baseUrl}}/bookings/quote
+Content-Type: application/json
+
+{
+  "motorId": 1,
+  "start": "2027-04-01",
+  "end": "2027-04-04",
+  "addons": ["extra_helmet", "raincoat"],
+  "delivery": {
+    "pickup": true,
+    "dropoff": true
+  },
+  "promoCode": "HEMAT10"
+}
+
+
+### ------------------------------------------------------------------------------
+### 5. PEMESANAN (BOOKING)
+### ------------------------------------------------------------------------------
+
+### 5.1 Buat Booking Baru
+# @name createBooking
+POST {{baseUrl}}/bookings
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "motorId": 1,
+  "startDate": "2027-05-10",
+  "endDate": "2027-05-13",
+  "pickupTime": "08:30",
+  "pickupLocation": "Bandara Internasional",
+  "pickup": "delivery",
+  "delivery": {
+    "pickup": true,
+    "dropoff": true
+  },
+  "addons": ["extra_helmet"],
+  "promoCode": "HEMAT10",
+  "payment": "bank_transfer",
+  "renter": {
+    "name": "Ilham Ramadhan (Demo)",
+    "phone": "081234567890",
+    "email": "demo@rodakita.id",
+    "idNumber": "3201234567890001",
+    "emergencyContact": {
+      "name": "Ibu Ratna",
+      "phone": "081377788899"
+    }
+  },
+  "notes": "Helm ukuran XL"
+}
+
+### 5.2 Riwayat Booking Saya (dengan Counts per Tab Status)
+GET {{baseUrl}}/bookings/my?status=all&page=1&limit=10
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 5.3 Detail Booking Lengkap dengan Timeline
+GET {{baseUrl}}/bookings/RK-30592
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 5.4 Unduh Berkas Kalender .ics
+GET {{baseUrl}}/bookings/3/ics
+Authorization: Bearer {{authToken}}
+Accept: text/calendar
+
+### 5.5 Batalkan Booking
+PUT {{baseUrl}}/bookings/5/cancel
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "reason": "Perubahan rencana jadwal liburan"
+}
+
+
+### ------------------------------------------------------------------------------
+### 6. PEMBAYARAN
+### ------------------------------------------------------------------------------
+
+### 6.1 Buat Transaksi Pembayaran (Bank Transfer / QRIS)
+POST {{baseUrl}}/payments/create
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "bookingId": 5,
+  "method": "bank_transfer"
+}
+
+### 6.2 Simulasi Bayar Instan (Status Booking -> Confirmed)
+POST {{baseUrl}}/payments/5/simulate-pay
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+### 6.3 Status Pembayaran per Booking
+GET {{baseUrl}}/payments/booking/5
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 6.4 Webhook Notifikasi Pembayaran (Idempotent)
+POST {{baseUrl}}/payments/notification
+Content-Type: application/json
+X-Callback-Signature: rodakita_webhook_secret_simulation_2026
+
+{
+  "bookingCode": "RK-50724",
+  "status": "settlement"
+}
+
+
+### ------------------------------------------------------------------------------
+### 7. ULASAN, FAVORIT, & FORM KONTAK
+### ------------------------------------------------------------------------------
+
+### 7.1 Tambah Ulasan (Hanya Sewa Completed Milik Sendiri)
+POST {{baseUrl}}/reviews
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "bookingId": 1,
+  "rating": 5,
+  "comment": "Motor sangat prima dan irit, siap sewa lagi kalau ke Bali!"
+}
+
+### 7.2 Daftar Motor Favorit Saya
+GET {{baseUrl}}/favorites
+Authorization: Bearer {{authToken}}
+Accept: application/json
+
+### 7.3 Tambah Motor ke Favorit (Idempotent)
+POST {{baseUrl}}/favorites/1
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+### 7.4 Hapus Motor dari Favorit (Idempotent)
+DELETE {{baseUrl}}/favorites/1
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+### 7.5 Sinkronisasi Favorit Lokal Tamu
+POST {{baseUrl}}/favorites/sync
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "motorIds": [1, 2, 4, 14]
+}
+
+### 7.6 Kirim Pesan Kontak (dengan Proteksi Honeypot Bot)
+POST {{baseUrl}}/contact
+Content-Type: application/json
+
+{
+  "name": "Dewi Sartika",
+  "email": "dewi@example.com",
+  "subject": "Pertanyaan Sewa Mingguan",
+  "message": "Halo, apakah ada diskon tambahan untuk rental motor di atas 7 hari?",
+  "website": ""
+}
