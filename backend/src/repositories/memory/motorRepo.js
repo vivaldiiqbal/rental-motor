@@ -50,13 +50,25 @@ const motorRepo = {
     let list = store.getCollection('motors').map((m) => ({ ...m }));
 
     if (filter.status) {
-      list = list.filter((m) => m.status === filter.status);
+      const target = filter.status === 'active' ? 'available' : filter.status;
+      list = list.filter((m) => m.status === target || m.status === filter.status);
     }
     if (filter.type) {
       list = list.filter((m) => m.type === filter.type);
     }
     if (filter.brand) {
       list = list.filter((m) => m.brand === filter.brand);
+    }
+    if (filter.search) {
+      const q = String(filter.search).toLowerCase().trim();
+      list = list.filter(
+        (m) =>
+          (m.name && m.name.toLowerCase().includes(q)) ||
+          (m.brand && m.brand.toLowerCase().includes(q)) ||
+          (m.plate && m.plate.toLowerCase().includes(q)) ||
+          (m.plateNumber && m.plateNumber.toLowerCase().includes(q)) ||
+          (m.type && m.type.toLowerCase().includes(q))
+      );
     }
     if (filter.ids && Array.isArray(filter.ids) && filter.ids.length > 0) {
       const idSet = new Set(filter.ids.map(String));
@@ -155,6 +167,13 @@ const motorRepo = {
   async getDistinctBrands() {
     const motors = store.getCollection('motors');
     return [...new Set(motors.map((m) => m.brand))].sort();
+  },
+
+  async getAdminFilterOptions() {
+    const motors = store.getCollection('motors');
+    const brands = [...new Set(motors.map((m) => m.brand).filter(Boolean))].sort();
+    const types = [...new Set(motors.map((m) => m.type).filter(Boolean))].sort();
+    return { brands, types };
   },
 
   async getPriceRange() {

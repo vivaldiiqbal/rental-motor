@@ -14,6 +14,21 @@ interface CsvButtonProps<T> {
   className?: string;
 }
 
+/**
+ * Sanitasi nilai sel CSV terhadap serangan CSV Formula Injection (CSV Injection).
+ * Jika nilai diawali dengan '=', '+', '-', '@', tab (\t), atau carriage return (\r),
+ * tambahkan tanda kutip tunggal (') di depannya.
+ */
+export function sanitizeCsvCell(value: unknown): string {
+  if (value === null || value === undefined) return '""';
+  let str = String(value);
+  if (/^[=+\-@\t\r]/.test(str)) {
+    str = `'${str}`;
+  }
+  const cleanStr = str.replace(/"/g, '""');
+  return `"${cleanStr}"`;
+}
+
 export function CsvButton<T>({
   data,
   columns,
@@ -28,16 +43,11 @@ export function CsvButton<T>({
     }
 
     try {
-      const headers = columns.map((c) => `"${c.header.replace(/"/g, '""')}"`).join(',');
+      const headers = columns.map((c) => sanitizeCsvCell(c.header)).join(',');
 
       const rows = data.map((item) => {
         return columns
-          .map((c) => {
-            const val = c.accessor(item);
-            if (val === null || val === undefined) return '""';
-            const cleanStr = String(val).replace(/"/g, '""');
-            return `"${cleanStr}"`;
-          })
+          .map((c) => sanitizeCsvCell(c.accessor(item)))
           .join(',');
       });
 

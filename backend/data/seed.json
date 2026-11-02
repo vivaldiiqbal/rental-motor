@@ -124,7 +124,7 @@
         "https://picsum.photos/seed/honda-beat-4/800/600"
       ],
       "status": "available",
-      "plate": "DK 1234 ***",
+      "plate": "DK 1234 RK",
       "popularity": 98,
       "rating": 4.8,
       "reviewCount": 3
@@ -156,7 +156,7 @@
         "https://picsum.photos/seed/honda-scoopy-4/800/600"
       ],
       "status": "available",
-      "plate": "DK 2345 ***",
+      "plate": "DK 2345 RK",
       "popularity": 95,
       "rating": 4.9,
       "reviewCount": 3
@@ -188,7 +188,7 @@
         "https://picsum.photos/seed/honda-vario-160-4/800/600"
       ],
       "status": "available",
-      "plate": "DK 3456 ***",
+      "plate": "DK 3456 RK",
       "popularity": 92,
       "rating": 4.8,
       "reviewCount": 2
@@ -220,7 +220,7 @@
         "https://picsum.photos/seed/honda-pcx-160-4/800/600"
       ],
       "status": "available",
-      "plate": "DK 4567 ***",
+      "plate": "DK 4567 RK",
       "popularity": 94,
       "rating": 4.9,
       "reviewCount": 2
@@ -252,7 +252,7 @@
         "https://picsum.photos/seed/honda-adv-160-4/800/600"
       ],
       "status": "available",
-      "plate": "DK 5678 ***",
+      "plate": "DK 5678 RK",
       "popularity": 93,
       "rating": 4.9,
       "reviewCount": 2
@@ -284,7 +284,7 @@
         "https://picsum.photos/seed/yamaha-nmax-155-4/800/600"
       ],
       "status": "available",
-      "plate": "DK 6789 ***",
+      "plate": "DK 6789 RK",
       "popularity": 99,
       "rating": 4.9,
       "reviewCount": 3
@@ -316,7 +316,7 @@
         "https://picsum.photos/seed/yamaha-aerox-155-4/800/600"
       ],
       "status": "available",
-      "plate": "DK 7890 ***",
+      "plate": "DK 7890 RK",
       "popularity": 91,
       "rating": 4.7,
       "reviewCount": 2
@@ -348,7 +348,7 @@
         "https://picsum.photos/seed/yamaha-fazzio-4/800/600"
       ],
       "status": "available",
-      "plate": "DK 8901 ***",
+      "plate": "DK 8901 RK",
       "popularity": 88,
       "rating": 4.8,
       "reviewCount": 2
@@ -380,7 +380,7 @@
         "https://picsum.photos/seed/honda-crf150l-4/800/600"
       ],
       "status": "available",
-      "plate": "DK 9012 ***",
+      "plate": "DK 9012 RK",
       "popularity": 89,
       "rating": 4.8,
       "reviewCount": 2
@@ -412,7 +412,7 @@
         "https://picsum.photos/seed/kawasaki-klx-150-4/800/600"
       ],
       "status": "maintenance",
-      "plate": "DK 1122 ***",
+      "plate": "DK 1122 RK",
       "popularity": 85,
       "rating": 4.7,
       "reviewCount": 2
@@ -444,7 +444,7 @@
         "https://picsum.photos/seed/yamaha-wr155r-4/800/600"
       ],
       "status": "available",
-      "plate": "DK 2233 ***",
+      "plate": "DK 2233 RK",
       "popularity": 87,
       "rating": 4.9,
       "reviewCount": 2
@@ -476,7 +476,7 @@
         "https://picsum.photos/seed/honda-cb150r-4/800/600"
       ],
       "status": "available",
-      "plate": "DK 3344 ***",
+      "plate": "DK 3344 RK",
       "popularity": 82,
       "rating": 4.7,
       "reviewCount": 2
@@ -508,7 +508,7 @@
         "https://picsum.photos/seed/suzuki-satria-f150-4/800/600"
       ],
       "status": "maintenance",
-      "plate": "DK 4455 ***",
+      "plate": "DK 4455 RK",
       "popularity": 80,
       "rating": 4.6,
       "reviewCount": 2
@@ -540,7 +540,7 @@
         "https://picsum.photos/seed/vespa-sprint-150-i-get-4/800/600"
       ],
       "status": "available",
-      "plate": "DK 5566 ***",
+      "plate": "DK 5566 RK",
       "popularity": 97,
       "rating": 5,
       "reviewCount": 3

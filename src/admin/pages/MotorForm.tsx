@@ -78,7 +78,7 @@ export const MotorForm: React.FC = () => {
         setColor(motor.color || 'Hitam');
         setTransmission(motor.transmission || 'Otomatis');
         setFuelCapacity(motor.fuelCapacity || 5);
-        setLicensePlate(motor.plate || '');
+        setLicensePlate(motor.plate || motor.plateNumber || '');
         setPricePerDay(motor.pricePerDay || 120000);
         setDeposit(motor.deposit ?? 200000);
         setDescription(motor.description || '');
@@ -86,7 +86,13 @@ export const MotorForm: React.FC = () => {
         if (motor.features && Array.isArray(motor.features)) {
           setFeatures(motor.features);
         }
-        setStatus((motor.status as any) || 'available');
+        const initialStatus =
+          motor.dataStatus === 'maintenance' || motor.status === 'maintenance'
+            ? 'maintenance'
+            : motor.dataStatus === 'inactive' || motor.status === 'inactive'
+            ? 'inactive'
+            : 'available';
+        setStatus(initialStatus);
         setRentalHistory(bookingsRes.data || []);
       } catch (err: any) {
         toast.error(err.message || 'Gagal memuat data motor.');

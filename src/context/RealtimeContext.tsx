@@ -125,6 +125,7 @@ export const RealtimeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         'message.new',
         'settings.changed',
         'gps.position',
+        'gps.alert',
       ];
 
       eventTypes.forEach((type) => {

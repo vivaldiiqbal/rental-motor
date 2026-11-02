@@ -2,11 +2,22 @@ const adminMotorService = require('../../services/admin/adminMotorService');
 const { successResponse } = require('../../utils/response');
 
 const adminMotorController = {
+  async getFilterOptions(req, res) {
+    const options = await adminMotorService.getFilterOptions();
+    return successResponse(res, { data: options });
+  },
+
   async getMotorcycles(req, res) {
     const result = await adminMotorService.getMotorcycles(req.query);
     return successResponse(res, {
       data: result.items,
-      meta: { total: result.total },
+      meta: {
+        page: result.page,
+        limit: result.limit,
+        total: result.total,
+        totalPages: result.totalPages,
+        filters: result.filters,
+      },
     });
   },
 

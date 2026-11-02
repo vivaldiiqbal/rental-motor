@@ -1,8 +1,27 @@
 import { Suspense, lazy } from 'react';
 import { Route, Routes } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
-import { Toaster } from 'react-hot-toast';
+import toast, { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './context/AuthContext';
+
+// Penghapusan duplikat toast untuk pesan identik dalam 3 detik (3000 ms)
+const recentToasts = new Map<string, { time: number; id: string }>();
+const DEDUPE_WINDOW_MS = 3000;
+const origToastError = toast.error.bind(toast);
+toast.error = ((message: any, options?: any) => {
+  const key = typeof message === 'string' ? `err:${message.trim()}` : '';
+  if (key) {
+    const now = Date.now();
+    const prev = recentToasts.get(key);
+    if (prev && now - prev.time < DEDUPE_WINDOW_MS) {
+      return prev.id;
+    }
+    const id = origToastError(message, options);
+    recentToasts.set(key, { time: now, id });
+    return id;
+  }
+  return origToastError(message, options);
+}) as typeof toast.error;
 import { RealtimeProvider } from './context/RealtimeContext';
 import { FavoritesProvider } from './context/FavoritesContext';
 import { CompareProvider } from './context/CompareContext';
@@ -118,8 +137,10 @@ export default function App() {
                     <Route path="gps" element={<AdminGpsTracking />} />
                     <Route path="messages" element={<AdminMessages />} />
 
+                    {/* Rute Daftar Armada (Admin & Staf bisa melihat) */}
+                    <Route path="motors" element={<AdminMotors />} />
+
                     {/* Rute Khusus Admin Utama */}
-                    <Route path="motors" element={<AdminOnlyGuard><AdminMotors /></AdminOnlyGuard>} />
                     <Route path="motors/new" element={<AdminOnlyGuard><AdminMotorForm /></AdminOnlyGuard>} />
                     <Route path="motors/:id/edit" element={<AdminOnlyGuard><AdminMotorForm /></AdminOnlyGuard>} />
                     <Route path="users" element={<AdminOnlyGuard><AdminUsers /></AdminOnlyGuard>} />

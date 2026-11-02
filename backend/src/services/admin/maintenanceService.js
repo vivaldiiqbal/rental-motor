@@ -3,6 +3,7 @@ const { recordAudit } = require('../../middleware/audit');
 const AppError = require('../../utils/AppError');
 const { ERROR_CODES } = require('../../config/constants');
 const { isValidISODate } = require('../../utils/dates');
+const broadcaster = require('../realtime/eventBroadcaster');
 
 const maintenanceService = {
   async getMaintenanceBlocks(query = {}) {
@@ -107,6 +108,14 @@ const maintenanceService = {
         null,
         newBlock
       );
+
+      try {
+        await broadcaster.publish(tx, {
+          type: 'motor.availability.changed',
+          entityId: motorId,
+          userId: null,
+        });
+      } catch {}
 
       return newBlock;
     });
@@ -256,6 +265,14 @@ const maintenanceService = {
         existing,
         updated
       );
+
+      try {
+        await broadcaster.publish(tx, {
+          type: 'motor.availability.changed',
+          entityId: existing.motorId,
+          userId: null,
+        });
+      } catch {}
 
       return updated;
     });

@@ -1,6 +1,21 @@
 export type MotorType = 'matic' | 'manual' | 'sport' | 'trail';
 export type Transmission = 'Otomatis' | 'Manual';
-export type MotorStatus = 'available' | 'maintenance' | 'inactive';
+export type MotorStatus = 'available' | 'rented' | 'maintenance' | 'inactive' | 'active';
+
+export interface MotorGpsSummary {
+  hasDevice: boolean;
+  status: 'no_device' | 'online' | 'offline' | 'alert';
+  statusLabel?: string;
+  deviceId: number | string | null;
+  label: string | null;
+  isOnline: boolean;
+  hasAlert: boolean;
+  openAlertsCount?: number;
+  batteryPct: number | null;
+  lastLat: number | null;
+  lastLng: number | null;
+  lastSeenAt: string | null;
+}
 
 export interface Motor {
   id: string;
@@ -18,10 +33,17 @@ export interface Motor {
   description: string;
   features: string[];
   images: string[];
+  primaryImage?: string | null;
   status: MotorStatus;
+  dataStatus?: 'active' | 'maintenance' | 'inactive';
+  operationalStatus?: string;
+  gpsStatus?: 'no_device' | 'online' | 'offline' | 'alert';
+  gpsStatusLabel?: string;
+  gps?: MotorGpsSummary;
   rating: number;
   reviewCount: number;
   plate: string;
+  plateNumber?: string;
   /** Skor popularitas untuk pengurutan "Terpopuler" */
   popularity: number;
   /** Dihitung oleh api berdasarkan tanggal yang dipilih */

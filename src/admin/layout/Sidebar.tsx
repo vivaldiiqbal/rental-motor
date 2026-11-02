@@ -185,6 +185,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 </span>
               )}
             </NavLink>
+
+            <NavLink to="/admin/motors" className={navItemClass} onClick={onClose}>
+              <div className="flex items-center gap-3">
+                <Bike className="w-4 h-4 text-primary-200" />
+                <span>Armada Motor</span>
+              </div>
+            </NavLink>
           </div>
 
           {/* Section: Master Data (Hanya Admin) */}
@@ -193,13 +200,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               <p className="px-3.5 text-[10px] font-bold uppercase tracking-wider text-gray-400">
                 Master Data
               </p>
-
-              <NavLink to="/admin/motors" className={navItemClass} onClick={onClose}>
-                <div className="flex items-center gap-3">
-                  <Bike className="w-4 h-4 text-primary-200" />
-                  <span>Armada Motor</span>
-                </div>
-              </NavLink>
 
               <NavLink to="/admin/users" className={navItemClass} onClick={onClose}>
                 <div className="flex items-center gap-3">

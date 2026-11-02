@@ -65,11 +65,12 @@ export function DataTable<T extends Record<string, any>>({
           </div>
           {onRetry && (
             <button
+              type="button"
               onClick={onRetry}
               className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-rose-300 rounded-lg text-xs font-medium hover:bg-rose-50"
             >
               <RefreshCw className="w-3.5 h-3.5" />
-              Coba Lagi
+              Coba lagi
             </button>
           )}
         </div>

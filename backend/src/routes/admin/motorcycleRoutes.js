@@ -7,6 +7,7 @@ const { uploadMotorImagesMiddleware } = require('../../middleware/upload');
 const { uploadLimiter } = require('../../middleware/rateLimiters');
 
 // Staff & Admin: View
+router.get('/filters', requireRole('admin', 'staff'), asyncHandler(adminMotorController.getFilterOptions));
 router.get('/', requireRole('admin', 'staff'), asyncHandler(adminMotorController.getMotorcycles));
 router.get('/:id', requireRole('admin', 'staff'), asyncHandler(adminMotorController.getMotorcycleById));
 

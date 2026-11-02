@@ -1469,6 +1469,37 @@ export const adminApi = {
   // ==========================================================================
   // 5. Motors (Armada)
   // ==========================================================================
+  async getMotorFilterOptions(): Promise<{
+    brands: string[];
+    types: string[];
+    statuses: Array<{ label: string; value: string }>;
+  }> {
+    if (!isMock) {
+      const res = await apiClient.get('/admin/motorcycles/filters');
+      const d = res.data?.data || res.data || {};
+      return {
+        brands: Array.isArray(d.brands) ? d.brands : [],
+        types: Array.isArray(d.types) ? d.types : [],
+        statuses: Array.isArray(d.statuses) ? d.statuses : [],
+      };
+    }
+
+    const store = getStoredData();
+    const brands = [...new Set(store.motors.map((m) => m.brand).filter(Boolean))].sort();
+    const types = [...new Set(store.motors.map((m) => m.type).filter(Boolean))].sort();
+    return {
+      brands,
+      types,
+      statuses: [
+        { label: 'Semua Status', value: 'all' },
+        { label: 'Tersedia', value: 'available' },
+        { label: 'Disewa', value: 'rented' },
+        { label: 'Servis', value: 'maintenance' },
+        { label: 'Nonaktif', value: 'inactive' },
+      ],
+    };
+  },
+
   async getMotors(params: {
     brand?: string;
     type?: string;
@@ -1477,33 +1508,37 @@ export const adminApi = {
     page?: number;
     limit?: number;
     sort?: string;
+    sortBy?: string;
+    sortDir?: 'asc' | 'desc';
   } = {}): Promise<ApiResponse<Motor[]>> {
     if (!isMock) {
-      try {
-        const queryParams = new URLSearchParams();
-        if (params.brand && params.brand !== 'all') queryParams.append('brand', params.brand);
-        if (params.type && params.type !== 'all') queryParams.append('type', params.type);
-        if (params.status && params.status !== 'all') queryParams.append('status', params.status);
-        if (params.search) queryParams.append('search', params.search);
-        if (params.page) queryParams.append('page', String(params.page));
-        if (params.limit) queryParams.append('limit', String(params.limit));
-        const res = await apiClient.get(`/motors?${queryParams.toString()}`);
-        const list = res.data?.data || [];
-        const total = res.data?.meta?.total ?? list.length;
-        const page = res.data?.meta?.page ?? params.page ?? 1;
-        const limit = res.data?.meta?.limit ?? params.limit ?? 10;
-        return {
-          data: list,
-          meta: {
-            total,
-            page,
-            limit,
-            totalPages: Math.max(1, Math.ceil(total / limit)),
-          },
-        };
-      } catch (err: any) {
-        console.warn('[AdminApi] getMotors live fetch failed, fallback to store:', err);
-      }
+      const queryParams = new URLSearchParams();
+      if (params.brand && params.brand !== 'all') queryParams.append('brand', params.brand);
+      if (params.type && params.type !== 'all') queryParams.append('type', params.type);
+      if (params.status && params.status !== 'all') queryParams.append('status', params.status);
+      if (params.search) queryParams.append('search', params.search);
+      if (params.page) queryParams.append('page', String(params.page));
+      if (params.limit) queryParams.append('limit', String(params.limit));
+      if (params.sort) queryParams.append('sort', params.sort);
+      if (params.sortBy) queryParams.append('sortBy', params.sortBy);
+      if (params.sortDir) queryParams.append('sortDir', params.sortDir);
+
+      const res = await apiClient.get(`/admin/motorcycles?${queryParams.toString()}`);
+      const list = res.data?.data || [];
+      const total = res.data?.meta?.total ?? list.length;
+      const page = res.data?.meta?.page ?? params.page ?? 1;
+      const limit = res.data?.meta?.limit ?? params.limit ?? 10;
+      const totalPages = res.data?.meta?.totalPages ?? Math.max(1, Math.ceil(total / limit));
+      return {
+        data: list,
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages,
+          filters: res.data?.meta?.filters,
+        },
+      };
     }
 
     await delay(350);
@@ -1526,7 +1561,7 @@ export const adminApi = {
         (m) =>
           m.name.toLowerCase().includes(q) ||
           m.brand.toLowerCase().includes(q) ||
-          m.plate.toLowerCase().includes(q),
+          (m.plate && m.plate.toLowerCase().includes(q)),
       );
     }
 
@@ -1553,6 +1588,19 @@ export const adminApi = {
   },
 
   async getMotorDetail(idOrSlug: string): Promise<ApiResponse<Motor>> {
+    if (!isMock) {
+      try {
+        const res = await apiClient.get(`/admin/motorcycles/${idOrSlug}`);
+        const data = res.data?.data || res.data;
+        if (data) return { data };
+      } catch (err: any) {
+        if (err.response?.status === 404) {
+          throw new Error('Data motor tidak ditemukan.');
+        }
+        throw err;
+      }
+    }
+
     await delay(300);
     checkSimulateError();
     const store = getStoredData();
@@ -1568,6 +1616,11 @@ export const adminApi = {
   },
 
   async updateMotorStatus(id: string, status: 'available' | 'maintenance' | 'inactive'): Promise<Motor> {
+    if (!isMock) {
+      const res = await apiClient.patch(`/admin/motorcycles/${id}/status`, { status });
+      return res.data?.data || res.data;
+    }
+
     const store = getStoredData();
     if (status !== 'available') {
       const today = new Date().toISOString().split('T')[0];
@@ -1588,6 +1641,11 @@ export const adminApi = {
   },
 
   async createMotor(motorData: Partial<Motor>): Promise<Motor> {
+    if (!isMock) {
+      const res = await apiClient.post('/admin/motorcycles', motorData);
+      return res.data?.data || res.data;
+    }
+
     await delay(450);
     checkSimulateError();
     const store = getStoredData();
@@ -1629,6 +1687,11 @@ export const adminApi = {
   },
 
   async updateMotor(id: string, patch: Partial<Motor>): Promise<Motor> {
+    if (!isMock) {
+      const res = await apiClient.put(`/admin/motorcycles/${id}`, patch);
+      return res.data?.data || res.data;
+    }
+
     await delay(400);
     checkSimulateError();
     const store = getStoredData();
@@ -1643,6 +1706,11 @@ export const adminApi = {
   },
 
   async deleteMotor(id: string): Promise<void> {
+    if (!isMock) {
+      await apiClient.patch(`/admin/motorcycles/${id}/status`, { status: 'inactive' });
+      return;
+    }
+
     await delay(400);
     checkSimulateError();
     const store = getStoredData();

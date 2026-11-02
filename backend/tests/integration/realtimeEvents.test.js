@@ -12,6 +12,10 @@ describe('Integration Test: Realtime Server-Sent Events (SSE) & Outbox', () => {
 
   beforeAll(async () => {
     ticketManager.reset();
+    if (process.env.USE_DB === 'postgres') {
+      const { loadSeed } = require('../../db/seeds/loadSeed');
+      await loadSeed();
+    }
 
     const custLogin = await request(app)
       .post('/api/auth/login')

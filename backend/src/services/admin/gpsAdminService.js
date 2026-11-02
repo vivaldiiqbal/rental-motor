@@ -2,6 +2,7 @@ const { gpsRepo, motorRepo, bookingRepo, settingsRepo, auditRepo } = require('..
 const { simplifyRouteRDP, detectStops } = require('../../utils/geo');
 const AppError = require('../../utils/AppError');
 const logger = require('../../utils/logger');
+const broadcaster = require('../realtime/eventBroadcaster');
 
 class GpsAdminService {
   /**
@@ -337,6 +338,14 @@ class GpsAdminService {
       ip: reqContext.ip || null,
     });
 
+    try {
+      await broadcaster.publish(null, {
+        type: 'motor.availability.changed',
+        entityId: motorcycleId,
+        userId: null,
+      });
+    } catch {}
+
     return device;
   }
 
@@ -361,6 +370,14 @@ class GpsAdminService {
       details: { changes: patch },
       ip: reqContext.ip || null,
     });
+
+    try {
+      await broadcaster.publish(null, {
+        type: 'motor.availability.changed',
+        entityId: device.motorcycleId,
+        userId: null,
+      });
+    } catch {}
 
     return updated;
   }

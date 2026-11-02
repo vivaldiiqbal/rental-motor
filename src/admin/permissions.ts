@@ -127,6 +127,7 @@ export const ROLE_PERMISSIONS: Record<AdminRole, Permission[]> = {
     'maintenance:complete',
     'messages:view',
     'messages:mark_read',
+    'motors:view',
   ],
   customer: [],
 };

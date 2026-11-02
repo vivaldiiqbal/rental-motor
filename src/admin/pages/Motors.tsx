@@ -8,6 +8,8 @@ import {
   AlertTriangle,
   X,
   History,
+  Navigation2,
+  Bike,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi } from '../services/adminApi';
@@ -19,10 +21,13 @@ import { CsvButton } from '../components/CsvButton';
 import { formatPrice } from '../../utils/formatPrice';
 import { usePermission } from '../hooks/usePermission';
 import { MotorRentalHistoryModal } from '../components/MotorRentalHistoryModal';
+import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
+import { useRealtime } from '../../context/RealtimeContext';
 
 export const Motors: React.FC = () => {
   const navigate = useNavigate();
   const { can } = usePermission();
+  const { registerRefetch } = useRealtime();
 
   const [motors, setMotors] = useState<Motor[]>([]);
   const [loading, setLoading] = useState(true);
@@ -37,6 +42,23 @@ export const Motors: React.FC = () => {
   const [brandFilter, setBrandFilter] = useState('all');
   const [typeFilter, setTypeFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState<string | undefined>(undefined);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+
+  // Dynamic Filter Options from Database
+  const [brandOptions, setBrandOptions] = useState<Array<{ label: string; value: string }>>([
+    { label: 'Semua Merek', value: 'all' },
+  ]);
+  const [typeOptions, setTypeOptions] = useState<Array<{ label: string; value: string }>>([
+    { label: 'Semua Tipe', value: 'all' },
+  ]);
+  const [statusOptions, setStatusOptions] = useState<Array<{ label: string; value: string }>>([
+    { label: 'Semua Status', value: 'all' },
+    { label: 'Tersedia', value: 'available' },
+    { label: 'Disewa', value: 'rented' },
+    { label: 'Servis', value: 'maintenance' },
+    { label: 'Nonaktif', value: 'inactive' },
+  ]);
 
   // Quick Status Modal
   const [statusModalOpen, setStatusModalOpen] = useState(false);
@@ -54,9 +76,33 @@ export const Motors: React.FC = () => {
     setHistoryModalOpen(true);
   };
 
-  const fetchMotors = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const applyFilterMetadata = useCallback((filtersMeta: any) => {
+    if (!filtersMeta) return;
+    if (Array.isArray(filtersMeta.brands) && filtersMeta.brands.length > 0) {
+      setBrandOptions([
+        { label: 'Semua Merek', value: 'all' },
+        ...filtersMeta.brands.map((b: string) => ({ label: b, value: b })),
+      ]);
+    }
+    if (Array.isArray(filtersMeta.types) && filtersMeta.types.length > 0) {
+      setTypeOptions([
+        { label: 'Semua Tipe', value: 'all' },
+        ...filtersMeta.types.map((t: string) => ({
+          label: t.charAt(0).toUpperCase() + t.slice(1),
+          value: t,
+        })),
+      ]);
+    }
+    if (Array.isArray(filtersMeta.statuses) && filtersMeta.statuses.length > 0) {
+      setStatusOptions(filtersMeta.statuses);
+    }
+  }, []);
+
+  const fetchMotors = useCallback(async (isSilent = false) => {
+    if (!isSilent) {
+      setLoading(true);
+      setError(null);
+    }
     try {
       const res = await adminApi.getMotors({
         search,
@@ -65,26 +111,71 @@ export const Motors: React.FC = () => {
         status: statusFilter,
         page,
         limit,
+        sortBy,
+        sortDir,
       });
       setMotors(res.data);
       if (res.meta) {
         setTotal(res.meta.total ?? 0);
         setTotalPages(res.meta.totalPages ?? 1);
+        if (res.meta.filters) {
+          applyFilterMetadata(res.meta.filters);
+        }
+      }
+      if (isSilent) {
+        setError(null);
       }
     } catch (err: any) {
-      setError(err.message || 'Gagal memuat katalog motor.');
+      if (!isSilent) {
+        setError(err.message || 'Gagal memuat katalog motor.');
+      }
     } finally {
-      setLoading(false);
+      if (!isSilent) {
+        setLoading(false);
+      }
     }
-  }, [search, brandFilter, typeFilter, statusFilter, page, limit]);
+  }, [search, brandFilter, typeFilter, statusFilter, page, limit, sortBy, sortDir, applyFilterMetadata]);
 
   useEffect(() => {
-    fetchMotors();
+    fetchMotors(false);
   }, [fetchMotors]);
+
+  useEffect(() => {
+    return registerRefetch('admin-motors-list', () => {
+      fetchMotors(true);
+    });
+  }, [registerRefetch, fetchMotors]);
+
+  useRealtimeSubscription(
+    ['motor.availability.changed', 'booking.updated', 'gps.position', 'gps.alert'],
+    () => {
+      fetchMotors(true);
+    }
+  );
+
+  const handleSort = (key: string) => {
+    if (sortBy === key) {
+      setSortDir((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+    } else {
+      setSortBy(key);
+      setSortDir('asc');
+    }
+    setPage(1);
+  };
 
   const openStatusChange = (motor: Motor) => {
     setSelectedMotor(motor);
-    setTargetStatus((motor.status as any) || 'available');
+    const currentDataStatus =
+      motor.dataStatus === 'maintenance'
+        ? 'maintenance'
+        : motor.dataStatus === 'inactive'
+        ? 'inactive'
+        : motor.status === 'maintenance'
+        ? 'maintenance'
+        : motor.status === 'inactive'
+        ? 'inactive'
+        : 'available';
+    setTargetStatus(currentDataStatus);
     setConflictWarning(null);
     setStatusModalOpen(true);
   };
@@ -99,14 +190,14 @@ export const Motors: React.FC = () => {
       await adminApi.updateMotorStatus(selectedMotor.id, targetStatus);
       const statusLabel =
         targetStatus === 'available'
-          ? 'Aktif (Tersedia)'
+          ? 'Tersedia'
           : targetStatus === 'maintenance'
-          ? 'Dalam Servis'
+          ? 'Servis'
           : 'Nonaktif';
       toast.success(`Status ${selectedMotor.name} berhasil diubah menjadi ${statusLabel}.`);
       setStatusModalOpen(false);
       setSelectedMotor(null);
-      fetchMotors();
+      fetchMotors(false);
     } catch (err: any) {
       setConflictWarning(err.message || 'Gagal mengubah status unit motor.');
       toast.error(err.message || 'Status tidak dapat diubah karena ada bentrok booking.');
@@ -120,51 +211,65 @@ export const Motors: React.FC = () => {
       key: 'name',
       header: 'Foto & Nama Motor',
       sortable: true,
-      render: (item) => (
-        <div className="flex items-center gap-3">
-          <div className="w-14 h-10 rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex-shrink-0">
-            <img
-              src={
-                item.images?.[0] ||
-                'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&w=400&q=80'
-              }
-              alt={item.name}
-              className="w-full h-full object-cover"
-            />
+      render: (item) => {
+        const photoUrl = item.primaryImage || item.images?.[0] || null;
+        return (
+          <div className="flex items-center gap-3">
+            <div className="w-14 h-10 rounded-lg bg-gray-100 overflow-hidden border border-gray-200 flex-shrink-0 flex items-center justify-center text-gray-400">
+              {photoUrl ? (
+                <img
+                  src={photoUrl}
+                  alt={item.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <Bike className="w-5 h-5" />
+              )}
+            </div>
+            <div>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openRentalHistory(item);
+                }}
+                title="Klik untuk melihat riwayat penyewaan unit ini"
+                className="font-bold text-gray-900 hover:text-primary-900 hover:underline text-left block text-xs"
+              >
+                {item.name}
+              </button>
+              <p className="text-[11px] text-gray-400 capitalize">
+                {item.brand} • {item.cc} cc • {item.year}
+              </p>
+            </div>
           </div>
-          <div>
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                openRentalHistory(item);
-              }}
-              title="Klik untuk melihat riwayat penyewaan unit ini"
-              className="font-bold text-gray-900 hover:text-primary-900 hover:underline text-left block text-xs"
-            >
-              {item.name}
-            </button>
-            <p className="text-[11px] text-gray-400 capitalize">
-              {item.brand} • {item.cc} cc • {item.year}
-            </p>
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: 'plate',
       header: 'Plat Nomor',
-      render: (item) => (
-        <span className="font-mono font-bold text-gray-800 text-xs px-2 py-0.5 rounded bg-gray-100 border border-gray-200">
-          {item.plate || '-'}
-        </span>
-      ),
+      render: (item) => {
+        const plateVal = (item.plate || item.plateNumber || '').trim();
+        if (!plateVal) {
+          return (
+            <span className="text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded">
+              Belum diisi
+            </span>
+          );
+        }
+        return (
+          <span className="font-mono font-bold text-gray-800 text-xs px-2 py-0.5 rounded bg-gray-100 border border-gray-200">
+            {plateVal}
+          </span>
+        );
+      },
     },
     {
       key: 'type',
       header: 'Tipe',
       render: (item) => (
-        <span className="capitalize text-xs font-medium text-gray-700">{item.type}</span>
+        <span className="capitalize text-xs font-medium text-gray-700">{item.type || '-'}</span>
       ),
     },
     {
@@ -182,19 +287,80 @@ export const Motors: React.FC = () => {
       key: 'rating',
       header: 'Rating',
       align: 'center',
-      render: (item) => (
-        <div className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600">
-          <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
-          <span>{item.rating || 5.0}</span>
-          <span className="text-gray-400 text-[10px]">({item.reviewCount || 0})</span>
-        </div>
-      ),
+      sortable: true,
+      render: (item) => {
+        const count = Number(item.reviewCount || 0);
+        if (count === 0) {
+          return <span className="text-xs text-gray-400">-</span>;
+        }
+        return (
+          <div className="inline-flex items-center gap-1 text-xs font-semibold text-amber-600">
+            <Star className="w-3.5 h-3.5 fill-amber-500 text-amber-500" />
+            <span>{item.rating || 5.0}</span>
+            <span className="text-gray-400 text-[10px]">({count})</span>
+          </div>
+        );
+      },
     },
     {
       key: 'status',
       header: 'Status',
       align: 'center',
-      render: (item) => <StatusBadge status={item.status} size="sm" />,
+      render: (item) => (
+        <StatusBadge status={item.operationalStatus || item.status || 'available'} size="sm" />
+      ),
+    },
+    {
+      key: 'gps',
+      header: 'GPS',
+      align: 'center',
+      render: (item) => {
+        const gStatus = item.gpsStatus || item.gps?.status || 'no_device';
+        if (gStatus === 'no_device' || !item.gps?.hasDevice) {
+          return (
+            <span className="text-[11px] text-gray-400">
+              Belum ada alat GPS
+            </span>
+          );
+        }
+        if (gStatus === 'alert') {
+          return (
+            <Link
+              to={`/admin/gps?motorId=${item.id}`}
+              onClick={(e) => e.stopPropagation()}
+              title="Peringatan GPS terbuka — Klik untuk melihat di peta"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
+            >
+              <Navigation2 className="w-3 h-3 text-rose-600" />
+              <span>Peringatan terbuka</span>
+            </Link>
+          );
+        }
+        if (gStatus === 'online') {
+          return (
+            <Link
+              to={`/admin/gps?motorId=${item.id}`}
+              onClick={(e) => e.stopPropagation()}
+              title="GPS Online — Klik untuk melacak"
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100"
+            >
+              <Navigation2 className="w-3 h-3 text-emerald-600" />
+              <span>Online</span>
+            </Link>
+          );
+        }
+        return (
+          <Link
+            to={`/admin/gps?motorId=${item.id}`}
+            onClick={(e) => e.stopPropagation()}
+            title="GPS Offline — Klik untuk melihat posisi terakhir"
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-gray-100 text-gray-600 border border-gray-200 hover:bg-gray-200"
+          >
+            <Navigation2 className="w-3 h-3 text-gray-500" />
+            <span>Offline</span>
+          </Link>
+        );
+      },
     },
     {
       key: 'actions',
@@ -215,7 +381,7 @@ export const Motors: React.FC = () => {
             <button
               type="button"
               onClick={() => openStatusChange(item)}
-              title="Ubah Status Cepat (Aktif / Servis / Nonaktif)"
+              title="Ubah Status Cepat (Tersedia / Servis / Nonaktif)"
               className="p-1.5 rounded-lg text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 transition-colors"
             >
               <PowerOff className="w-4 h-4" />
@@ -279,12 +445,7 @@ export const Motors: React.FC = () => {
           {
             key: 'status',
             value: statusFilter,
-            options: [
-              { label: 'Semua Status', value: 'all' },
-              { label: 'Aktif / Tersedia', value: 'available' },
-              { label: 'Dalam Servis', value: 'maintenance' },
-              { label: 'Nonaktif', value: 'inactive' },
-            ],
+            options: statusOptions,
             onChange: (st) => {
               setStatusFilter(st);
               setPage(1);
@@ -293,13 +454,7 @@ export const Motors: React.FC = () => {
           {
             key: 'brand',
             value: brandFilter,
-            options: [
-              { label: 'Semua Merek', value: 'all' },
-              { label: 'Honda', value: 'Honda' },
-              { label: 'Yamaha', value: 'Yamaha' },
-              { label: 'Vespa', value: 'Vespa' },
-              { label: 'Kawasaki', value: 'Kawasaki' },
-            ],
+            options: brandOptions,
             onChange: (b) => {
               setBrandFilter(b);
               setPage(1);
@@ -308,13 +463,7 @@ export const Motors: React.FC = () => {
           {
             key: 'type',
             value: typeFilter,
-            options: [
-              { label: 'Semua Tipe', value: 'all' },
-              { label: 'Matic', value: 'matic' },
-              { label: 'Manual', value: 'manual' },
-              { label: 'Sport', value: 'sport' },
-              { label: 'Trail', value: 'trail' },
-            ],
+            options: typeOptions,
             onChange: (t) => {
               setTypeFilter(t);
               setPage(1);
@@ -336,15 +485,16 @@ export const Motors: React.FC = () => {
           data={motors}
           columns={[
             { header: 'Nama Model', accessor: (m) => m.name },
-            { header: 'Plat Nomor', accessor: (m) => m.plate },
+            { header: 'Plat Nomor', accessor: (m) => m.plate || m.plateNumber || 'Belum diisi' },
             { header: 'Merek', accessor: (m) => m.brand },
             { header: 'Tipe', accessor: (m) => m.type },
             { header: 'CC Mesin', accessor: (m) => m.cc },
             { header: 'Tahun', accessor: (m) => m.year },
             { header: 'Tarif / Hari (Rp)', accessor: (m) => m.pricePerDay },
             { header: 'Deposit (Rp)', accessor: (m) => m.deposit },
-            { header: 'Status', accessor: (m) => m.status },
-            { header: 'Rating', accessor: (m) => m.rating },
+            { header: 'Status Operasional', accessor: (m) => m.operationalStatus || m.status },
+            { header: 'Status GPS', accessor: (m) => m.gpsStatusLabel || m.gpsStatus || 'Belum ada alat GPS' },
+            { header: 'Rating', accessor: (m) => (m.reviewCount && m.reviewCount > 0 ? m.rating : '-') },
           ]}
           filename={`armada-motor-${new Date().toISOString().split('T')[0]}.csv`}
         />
@@ -355,7 +505,10 @@ export const Motors: React.FC = () => {
         data={motors}
         loading={loading}
         error={error}
-        onRetry={fetchMotors}
+        onRetry={() => fetchMotors(false)}
+        sortBy={sortBy}
+        sortDir={sortDir}
+        onSort={handleSort}
         page={page}
         totalPages={totalPages}
         total={total}
@@ -365,7 +518,13 @@ export const Motors: React.FC = () => {
           setLimit(l);
           setPage(1);
         }}
-        onRowClick={(item) => navigate(`/admin/motors/${item.id}/edit`)}
+        onRowClick={(item) => {
+          if (can('motors:edit')) {
+            navigate(`/admin/motors/${item.id}/edit`);
+          } else {
+            openRentalHistory(item);
+          }
+        }}
         emptyText="Unit motor tidak ditemukan"
         emptySubtext="Sesuaikan kata kunci pencarian atau reset filter katalog."
       />

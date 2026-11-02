@@ -258,6 +258,22 @@ const motorRepo = {
     }
   },
 
+  async getAdminFilterOptions(client = null) {
+    const db = client || pool;
+    try {
+      const [brandsRes, typesRes] = await Promise.all([
+        db.query("SELECT DISTINCT brand FROM motorcycles WHERE brand IS NOT NULL AND brand <> '' ORDER BY brand ASC"),
+        db.query("SELECT DISTINCT type FROM motorcycles WHERE type IS NOT NULL AND type <> '' ORDER BY type ASC"),
+      ]);
+      return {
+        brands: brandsRes.rows.map((r) => r.brand),
+        types: typesRes.rows.map((r) => r.type),
+      };
+    } catch (err) {
+      throw handlePgError(err);
+    }
+  },
+
   async getPriceRange(client = null) {
     const db = client || pool;
     try {
