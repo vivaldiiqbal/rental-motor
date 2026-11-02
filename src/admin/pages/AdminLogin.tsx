@@ -46,6 +46,7 @@ export const AdminLogin: React.FC = () => {
 
       // Simpan sesi otentikasi
       localStorage.setItem(TOKEN_KEY, token);
+      localStorage.setItem('rk_admin_token_v1', token);
       localStorage.setItem(SESSION_KEY, String(user.id));
       localStorage.setItem(CURRENT_ADMIN_KEY, JSON.stringify(user));
 

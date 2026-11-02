@@ -34,6 +34,9 @@ export const Documents: React.FC = () => {
   const { can } = usePermission();
 
   const [documents, setDocuments] = useState<AdminDocument[]>([]);
+  const [allDocuments, setAllDocuments] = useState<AdminDocument[]>([]);
+  const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
+  const [refreshStamp, setRefreshStamp] = useState<number>(Date.now());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -62,30 +65,86 @@ export const Documents: React.FC = () => {
   const [zoomKtp, setZoomKtp] = useState(1);
   const [zoomSim, setZoomSim] = useState(1);
 
+  const resolveDocImageSrc = useCallback(
+    (doc?: AdminDocument | null) => {
+      if (!doc) return '';
+      const token =
+        typeof window !== 'undefined'
+          ? localStorage.getItem('rk_admin_token_v1') ||
+            localStorage.getItem('rk_token_v1') ||
+            localStorage.getItem('rodakita_admin_token') ||
+            localStorage.getItem('token') ||
+            ''
+          : '';
+      const apiOrigin =
+        import.meta.env.VITE_API_BASE_URL ||
+        (import.meta.env.VITE_API_URL?.startsWith('http')
+          ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '')
+          : typeof window !== 'undefined' && window.location.port === '5173'
+          ? 'http://localhost:5001'
+          : '');
+      const updatedTime =
+        doc.updated_at || doc.updatedAt || doc.uploadedAt
+          ? new Date(doc.updated_at || doc.updatedAt || doc.uploadedAt).getTime()
+          : refreshStamp;
+
+      if (doc.fileUrl) {
+        const cleanUrl = doc.fileUrl.split('?')[0];
+        const fullBase = cleanUrl.startsWith('http') ? cleanUrl : `${apiOrigin}${cleanUrl}`;
+        const qs = new URLSearchParams();
+        if (token) qs.set('token', token);
+        qs.set('t', `${updatedTime}-${refreshStamp}`);
+        return `${fullBase}?${qs.toString()}`;
+      }
+
+      const rawPath = doc.file_path || doc.filePath;
+      if (rawPath) {
+        const normalizedPath = rawPath.replace(/^\/+/, '');
+        const qs = new URLSearchParams();
+        if (token) qs.set('token', token);
+        qs.set('t', `${updatedTime}-${refreshStamp}`);
+        return `${apiOrigin}/${normalizedPath}?${qs.toString()}`;
+      }
+
+      return '';
+    },
+    [refreshStamp],
+  );
+
   const fetchDocuments = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await adminApi.getDocuments({
-        status: statusParam === 'all' ? undefined : statusParam,
-        search,
-        page,
-        limit,
-      });
+      const [res, allDocsRes] = await Promise.all([
+        adminApi.getDocuments({
+          status: statusParam === 'all' ? undefined : statusParam,
+          search,
+          page,
+          limit,
+        }),
+        adminApi.getDocuments({ limit: 200 }),
+      ]);
+      setRefreshStamp(Date.now());
+      setFailedImages({});
       setDocuments(res.data);
       if (res.meta) {
         setTotal(res.meta.total ?? 0);
         setTotalPages(res.meta.totalPages ?? 1);
       }
 
-      // Also fetch counts for the tabs
-      const [allDocsRes] = await Promise.all([
-        adminApi.getDocuments({ limit: 200 }),
-      ]);
       const allDocs = allDocsRes.data;
+      setAllDocuments(allDocs);
       setPendingCount(allDocs.filter((d) => d.status === 'pending').length);
       setVerifiedCount(allDocs.filter((d) => d.status === 'verified').length);
       setRejectedCount(allDocs.filter((d) => d.status === 'rejected').length);
+
+      setPreviewDoc((prev) => {
+        if (!prev) return null;
+        const fresh =
+          allDocs.find((d) => String(d.userId) === String(prev.userId) && d.type === prev.type) ||
+          res.data.find((d) => String(d.userId) === String(prev.userId) && d.type === prev.type);
+        return fresh || prev;
+      });
     } catch (err: any) {
       setError(err.message || 'Gagal memuat dokumen.');
     } finally {
@@ -113,24 +172,12 @@ export const Documents: React.FC = () => {
   const pairedDoc = useMemo(() => {
     if (!previewDoc) return null;
     const otherType = previewDoc.type === 'ktp' ? 'sim' : 'ktp';
-    const found = documents.find((d) => String(d.userId) === String(previewDoc.userId) && d.type === otherType);
+    const found =
+      documents.find((d) => String(d.userId) === String(previewDoc.userId) && d.type === otherType) ||
+      allDocuments.find((d) => String(d.userId) === String(previewDoc.userId) && d.type === otherType);
     if (found) return found;
-    const token =
-      localStorage.getItem('rk_token_v1') ||
-      localStorage.getItem('rodakita_admin_token') ||
-      localStorage.getItem('token') ||
-      '';
-    return {
-      id: `doc-${previewDoc.userId}-${otherType}`,
-      userId: previewDoc.userId,
-      userName: previewDoc.userName,
-      userEmail: previewDoc.userEmail,
-      userPhone: previewDoc.userPhone,
-      type: otherType,
-      status: 'verified',
-      fileUrl: `/api/admin/documents/${previewDoc.userId}/${otherType}/file${token ? `?token=${encodeURIComponent(token)}` : ''}`,
-    } as AdminDocument;
-  }, [previewDoc, documents]);
+    return null;
+  }, [previewDoc, documents, allDocuments]);
 
   // Helper to advance to next pending document in queue
   const advanceToNextPending = (currentDocId: string) => {
@@ -217,33 +264,41 @@ export const Documents: React.FC = () => {
     {
       key: 'fileUrl',
       header: 'Pratinjau Privat',
-      render: (item) => (
-        <div
-          onClick={(e) => {
-            e.stopPropagation();
-            setPreviewDoc(item);
-            setZoomKtp(1);
-            setZoomSim(1);
-          }}
-          className="cursor-pointer group relative w-16 h-10 rounded-lg bg-gray-900 overflow-hidden border border-gray-300"
-          title="Klik untuk tinjau berdampingan dengan zoom"
-        >
-          <img
-            src={item.fileUrl}
-            alt="Dokumen"
-            className="w-full h-full object-cover opacity-90"
-            onError={(e) => {
-              (e.target as HTMLElement).style.display = 'none';
+      render: (item) => {
+        const imgSrc = resolveDocImageSrc(item);
+        const hasError = !imgSrc || Boolean(failedImages[imgSrc]);
+        return (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              setPreviewDoc(item);
+              setZoomKtp(1);
+              setZoomSim(1);
             }}
-          />
-          <div className="absolute inset-0 -z-10 flex items-center justify-center bg-gray-800 text-[10px] font-bold text-gray-400 uppercase">
-            {item.type}
+            className="cursor-pointer group relative w-16 h-10 rounded-lg bg-gray-900 overflow-hidden border border-gray-300"
+            title="Klik untuk tinjau berdampingan dengan zoom"
+          >
+            {!hasError ? (
+              <img
+                key={imgSrc}
+                src={imgSrc}
+                alt={`Dokumen ${item.type.toUpperCase()} ${item.userName}`}
+                className="w-full h-full object-cover opacity-90"
+                onError={() => {
+                  setFailedImages((prev) => ({ ...prev, [imgSrc]: true }));
+                }}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center bg-gray-800 text-[10px] font-bold text-gray-400 uppercase">
+                {item.type}
+              </div>
+            )}
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+              <Eye className="w-4 h-4" />
+            </div>
           </div>
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
-            <Eye className="w-4 h-4" />
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: 'status',
@@ -457,22 +512,31 @@ export const Documents: React.FC = () => {
                   </div>
 
                   <div className="h-60 bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center relative">
-                    {previewDoc.type === 'ktp' || pairedDoc?.fileUrl ? (
-                      <img
-                        src={previewDoc.type === 'ktp' ? previewDoc.fileUrl : pairedDoc?.fileUrl}
-                        alt="Foto KTP"
-                        onError={(e) => {
-                          (e.target as HTMLElement).style.display = 'none';
-                        }}
-                        style={{ transform: `scale(${zoomKtp})` }}
-                        className="max-h-56 max-w-full object-contain transition-transform duration-150"
-                      />
-                    ) : (
-                      <div className="text-gray-400 text-xs flex flex-col items-center">
-                        <FileText className="w-8 h-8 text-gray-500 mb-1" />
-                        <span>Dokumen KTP Belum Tersedia</span>
-                      </div>
-                    )}
+                    {(() => {
+                      const ktpDoc = previewDoc.type === 'ktp' ? previewDoc : pairedDoc;
+                      const ktpSrc = resolveDocImageSrc(ktpDoc);
+                      const ktpErr = !ktpSrc || Boolean(failedImages[ktpSrc]);
+                      if (ktpDoc && !ktpErr) {
+                        return (
+                          <img
+                            key={ktpSrc}
+                            src={ktpSrc}
+                            alt={`Foto KTP ${previewDoc.userName}`}
+                            onError={() => {
+                              setFailedImages((prev) => ({ ...prev, [ktpSrc]: true }));
+                            }}
+                            style={{ transform: `scale(${zoomKtp})` }}
+                            className="max-h-56 max-w-full object-contain transition-transform duration-150"
+                          />
+                        );
+                      }
+                      return (
+                        <div className="text-gray-400 text-xs flex flex-col items-center">
+                          <FileText className="w-8 h-8 text-gray-500 mb-1" />
+                          <span>Dokumen KTP Belum Tersedia</span>
+                        </div>
+                      );
+                    })()}
                     <span className="absolute bottom-1 right-2 text-[9px] text-gray-400 bg-black/60 px-1 rounded">
                       Enkripsi Privat
                     </span>
@@ -480,7 +544,7 @@ export const Documents: React.FC = () => {
                   <div className="text-[11px] text-gray-600 flex justify-between">
                     <span>NIK / No. KTP:</span>
                     <strong className="font-mono text-gray-800">
-                      {previewDoc.type === 'ktp' ? previewDoc.idNumber : pairedDoc?.idNumber || '3171012345670001'}
+                      {previewDoc.type === 'ktp' ? previewDoc.idNumber : pairedDoc?.idNumber || 'Belum diisi'}
                     </strong>
                   </div>
                 </div>
@@ -516,22 +580,31 @@ export const Documents: React.FC = () => {
                   </div>
 
                   <div className="h-60 bg-gray-900 rounded-lg overflow-hidden flex items-center justify-center relative">
-                    {previewDoc.type === 'sim' || pairedDoc?.fileUrl ? (
-                      <img
-                        src={previewDoc.type === 'sim' ? previewDoc.fileUrl : pairedDoc?.fileUrl}
-                        alt="Foto SIM C"
-                        onError={(e) => {
-                          (e.target as HTMLElement).style.display = 'none';
-                        }}
-                        style={{ transform: `scale(${zoomSim})` }}
-                        className="max-h-56 max-w-full object-contain transition-transform duration-150"
-                      />
-                    ) : (
-                      <div className="text-gray-400 text-xs flex flex-col items-center">
-                        <FileText className="w-8 h-8 text-gray-500 mb-1" />
-                        <span>Dokumen SIM Belum Tersedia</span>
-                      </div>
-                    )}
+                    {(() => {
+                      const simDoc = previewDoc.type === 'sim' ? previewDoc : pairedDoc;
+                      const simSrc = resolveDocImageSrc(simDoc);
+                      const simErr = !simSrc || Boolean(failedImages[simSrc]);
+                      if (simDoc && !simErr) {
+                        return (
+                          <img
+                            key={simSrc}
+                            src={simSrc}
+                            alt={`Foto SIM C ${previewDoc.userName}`}
+                            onError={() => {
+                              setFailedImages((prev) => ({ ...prev, [simSrc]: true }));
+                            }}
+                            style={{ transform: `scale(${zoomSim})` }}
+                            className="max-h-56 max-w-full object-contain transition-transform duration-150"
+                          />
+                        );
+                      }
+                      return (
+                        <div className="text-gray-400 text-xs flex flex-col items-center">
+                          <FileText className="w-8 h-8 text-gray-500 mb-1" />
+                          <span>Dokumen SIM Belum Tersedia</span>
+                        </div>
+                      );
+                    })()}
                     <span className="absolute bottom-1 right-2 text-[9px] text-gray-400 bg-black/60 px-1 rounded">
                       Enkripsi Privat
                     </span>
@@ -539,7 +612,7 @@ export const Documents: React.FC = () => {
                   <div className="text-[11px] text-gray-600 flex justify-between">
                     <span>No. SIM C:</span>
                     <strong className="font-mono text-gray-800">
-                      {previewDoc.type === 'sim' ? previewDoc.idNumber : pairedDoc?.idNumber || '9912-3456-7890'}
+                      {previewDoc.type === 'sim' ? previewDoc.idNumber : pairedDoc?.idNumber || 'Belum diisi'}
                     </strong>
                   </div>
                 </div>

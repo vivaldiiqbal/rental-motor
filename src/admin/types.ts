@@ -134,11 +134,15 @@ export interface AdminDocument {
   birthDate?: string;
   simExpiry?: string;
   storedName: string;
+  filePath?: string;
+  file_path?: string;
   fileUrl: string;
   status: 'pending' | 'verified' | 'rejected';
   reviewerNote?: string;
   notes?: string;
   uploadedAt: string;
+  updatedAt?: string;
+  updated_at?: string;
   verifiedAt?: string;
 }
 

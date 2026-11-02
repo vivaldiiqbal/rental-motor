@@ -3,7 +3,10 @@ const { successResponse } = require('../../utils/response');
 
 const documentReviewController = {
   async getDocuments(req, res) {
-    const result = await documentReviewService.getDocuments(req.query);
+    const result = await documentReviewService.getDocuments(req.query, {
+      page: req.query.page,
+      limit: req.query.limit,
+    });
     return successResponse(res, {
       data: result.items,
       meta: {
@@ -23,7 +26,10 @@ const documentReviewController = {
     );
 
     res.setHeader('Content-Type', contentType);
-    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
 
     stream.pipe(res);

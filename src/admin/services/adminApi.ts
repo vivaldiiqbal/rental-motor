@@ -209,6 +209,7 @@ export const adminApi = {
           throw new Error('Akses ditolak: Akun Anda bukan Administrator atau Staf.');
         }
         localStorage.setItem('rk_token_v1', token);
+        localStorage.setItem('rk_admin_token_v1', token);
         localStorage.setItem('rk_session_v1', String(user.id));
         const adminUser: AdminUser = {
           id: String(user.id),
@@ -283,6 +284,7 @@ export const adminApi = {
       recordAudit('LOGOUT', 'Otentikasi', `Pengguna ${u.name} keluar dari panel`);
     }
     localStorage.removeItem(CURRENT_ADMIN_KEY);
+    localStorage.removeItem('rk_admin_token_v1');
     localStorage.removeItem('rk_token_v1');
     localStorage.removeItem('rk_session_v1');
   },
@@ -1248,50 +1250,66 @@ export const adminApi = {
     limit?: number;
   } = {}): Promise<ApiResponse<AdminDocument[]>> {
     if (!isMock) {
-      try {
-        const queryParams = new URLSearchParams();
-        if (params.status && params.status !== 'all') queryParams.append('status', params.status);
-        if (params.type && params.type !== 'all') queryParams.append('type', params.type);
-        if (params.search) queryParams.append('search', params.search);
-        if (params.page) queryParams.append('page', String(params.page));
-        if (params.limit) queryParams.append('limit', String(params.limit));
-        const res = await apiClient.get(`/admin/documents?${queryParams.toString()}`);
-        const token =
-          localStorage.getItem('rk_token_v1') ||
-          localStorage.getItem('rodakita_admin_token') ||
-          localStorage.getItem('token') ||
-          '';
-        const rawItems = res.data?.data || [];
-        const mappedList: AdminDocument[] = (Array.isArray(rawItems) ? rawItems : []).map((d: any) => {
-          let fileUrl = d.fileUrl || `/api/admin/documents/${d.userId}/${d.type}/file`;
-          if (token && !fileUrl.includes('token=')) {
-            const sep = fileUrl.includes('?') ? '&' : '?';
-            fileUrl = `${fileUrl}${sep}token=${encodeURIComponent(token)}`;
-          }
-          return {
-            ...d,
-            id: d.id || `doc-${d.userId}-${d.type}`,
-            idNumber: d.idNumber || d.id_number || (d.type === 'ktp' ? '3201************' : 'SIM-C-********'),
-            fileUrl,
-            filePath: d.filePath,
-          };
-        });
-        const total = res.data?.meta?.total ?? mappedList.length;
-        const page = res.data?.meta?.page ?? params.page ?? 1;
-        const limit = res.data?.meta?.limit ?? params.limit ?? 10;
+      const queryParams = new URLSearchParams();
+      if (params.status && params.status !== 'all') queryParams.append('status', params.status);
+      if (params.type && params.type !== 'all') queryParams.append('type', params.type);
+      if (params.search) queryParams.append('search', params.search);
+      if (params.page) queryParams.append('page', String(params.page));
+      if (params.limit) queryParams.append('limit', String(params.limit));
+      const res = await apiClient.get(`/admin/documents?${queryParams.toString()}`);
+      const token =
+        localStorage.getItem('rk_admin_token_v1') ||
+        localStorage.getItem('rk_token_v1') ||
+        localStorage.getItem('rodakita_admin_token') ||
+        localStorage.getItem('token') ||
+        '';
+      const apiOrigin =
+        import.meta.env.VITE_API_BASE_URL ||
+        (import.meta.env.VITE_API_URL?.startsWith('http')
+          ? import.meta.env.VITE_API_URL.replace(/\/api\/?$/, '')
+          : typeof window !== 'undefined' && window.location.port === '5173'
+          ? 'http://localhost:5001'
+          : '');
+      const rawItems = res.data?.data || [];
+      const mappedList: AdminDocument[] = (Array.isArray(rawItems) ? rawItems : []).map((d: any) => {
+        const tsSource = d.updatedAt || d.updated_at || d.uploadedAt || d.uploaded_at;
+        const ts = tsSource ? new Date(tsSource).getTime() || Date.now() : Date.now();
+        const rawUrl = d.fileUrl || `/api/admin/documents/${d.userId}/${d.type}/file`;
+        const basePath = rawUrl.startsWith('http')
+          ? rawUrl.split('?')[0]
+          : `${apiOrigin}${rawUrl.split('?')[0]}`;
+        const qs = new URLSearchParams();
+        if (token) qs.set('token', token);
+        qs.set('t', String(ts));
+        const fileUrl = `${basePath}?${qs.toString()}`;
+        const filePath = d.filePath || d.file_path || null;
+
         return {
-          data: mappedList,
-          meta: {
-            total,
-            page,
-            limit,
-            totalPages: Math.max(1, Math.ceil(total / limit)),
-            pendingCount: mappedList.filter((d: any) => d.status === 'pending').length,
-          },
+          ...d,
+          id: d.id || `doc-${d.userId}-${d.type}`,
+          idNumber: d.idNumber || d.id_number || (d.type === 'ktp' ? '3201************' : 'SIM-C-********'),
+          storedName: d.storedName || d.stored_name || '',
+          fileUrl,
+          filePath,
+          file_path: filePath,
+          uploadedAt: d.uploadedAt || d.uploaded_at || new Date().toISOString(),
+          updatedAt: d.updatedAt || d.updated_at || d.uploadedAt || d.uploaded_at || new Date().toISOString(),
+          updated_at: d.updated_at || d.updatedAt || d.uploaded_at || d.uploadedAt || new Date().toISOString(),
         };
-      } catch (err: any) {
-        console.warn('[AdminApi] getDocuments live fetch failed, fallback to store:', err);
-      }
+      });
+      const total = res.data?.meta?.total ?? mappedList.length;
+      const page = res.data?.meta?.page ?? params.page ?? 1;
+      const limit = res.data?.meta?.limit ?? params.limit ?? 10;
+      return {
+        data: mappedList,
+        meta: {
+          total,
+          page,
+          limit,
+          totalPages: Math.max(1, Math.ceil(total / limit)),
+          pendingCount: mappedList.filter((d: any) => d.status === 'pending').length,
+        },
+      };
     }
 
     await delay(300);

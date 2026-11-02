@@ -321,7 +321,14 @@ function DocRow({
   const [thumbError, setThumbError] = useState(false);
   const meta = docMeta[status] || docMeta.none;
   const isUploaded = status !== 'none';
-  const docUrl = api.getDocumentUrl(kind, lastUpdated);
+  const cacheBust = docInfo?.uploadedAt
+    ? `${new Date(docInfo.uploadedAt).getTime()}-${lastUpdated}`
+    : lastUpdated;
+  const docUrl = api.getDocumentUrl(kind, cacheBust);
+
+  useEffect(() => {
+    setThumbError(false);
+  }, [docUrl]);
 
   const onFile = async (file?: File) => {
     if (!file) return;

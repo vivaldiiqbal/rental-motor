@@ -11,9 +11,15 @@ const documentReviewService = {
     return documentRepo.findAll(filter, paging);
   },
 
-  async getDocumentFile(userId, type, actor = {}, reqInfo = {}) {
+  async getDocumentFile(userId, type, actorOrContext = {}, reqInfo = {}) {
+    const actor = actorOrContext?.user || actorOrContext || {};
+    const info = {
+      ip: reqInfo?.ip || actorOrContext?.ip,
+      userAgent: reqInfo?.userAgent || actorOrContext?.headers?.['user-agent'],
+    };
+
     const doc = await documentRepo.findByUserIdAndType(userId, type);
-    if (!doc) {
+    if (!doc || doc.status === 'not_uploaded') {
       throw new AppError(`Berkas dokumen ${type.toUpperCase()} tidak ditemukan.`, 'NOT_FOUND', 404);
     }
 
@@ -41,8 +47,8 @@ const documentReviewService = {
       entityType: 'Document',
       entityId: `${userId}_${type}`,
       details: `Mengakses berkas privat ${type.toUpperCase()} pengguna #${userId}`,
-      ip: reqInfo?.ip,
-      userAgent: reqInfo?.userAgent,
+      ip: info?.ip,
+      userAgent: info?.userAgent,
     });
 
     if (resolvedPath && fs.existsSync(resolvedPath)) {
@@ -58,35 +64,15 @@ const documentReviewService = {
       };
     }
 
-    // Fallback jika file fisik demo/seed belum pernah diunggah ke disk
-    const { Readable } = require('stream');
-    const label = type === 'ktp' ? 'KTP (KARTU TANDA PENDUDUK)' : 'SIM C (SURAT IZIN MENGEMUDI)';
-    const statusColor = doc.status === 'verified' ? '#4ade80' : doc.status === 'rejected' ? '#f87171' : '#fbbf24';
-    const statusText = doc.status === 'verified' ? '✓ Terverifikasi Sistem' : doc.status === 'rejected' ? '✕ Ditolak' : '⏳ Menunggu Verifikasi';
-    const svgBadge = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="380" viewBox="0 0 600 380">
-      <rect width="600" height="380" rx="16" fill="#1e293b"/>
-      <rect x="20" y="20" width="560" height="340" rx="12" fill="#0f172a" stroke="#334155" stroke-width="2"/>
-      <text x="50" y="70" fill="#f8fafc" font-size="20" font-family="sans-serif" font-weight="bold">REPUBLIK INDONESIA</text>
-      <text x="50" y="100" fill="#38bdf8" font-size="14" font-family="sans-serif" font-weight="bold">${label}</text>
-      <rect x="50" y="130" width="120" height="150" rx="8" fill="#334155"/>
-      <circle cx="110" cy="180" r="30" fill="#64748b"/>
-      <path d="M70 250 C70 220, 150 220, 150 250 Z" fill="#64748b"/>
-      <text x="200" y="150" fill="#94a3b8" font-size="12" font-family="sans-serif">ID Pengguna</text>
-      <text x="200" y="175" fill="#f8fafc" font-size="16" font-family="monospace" font-weight="bold">Pengguna #${userId}</text>
-      <text x="200" y="210" fill="#94a3b8" font-size="12" font-family="sans-serif">Status Dokumen</text>
-      <text x="200" y="235" fill="${statusColor}" font-size="14" font-family="sans-serif" font-weight="bold">${statusText}</text>
-      <text x="200" y="270" fill="#64748b" font-size="11" font-family="sans-serif">Enkripsi Privat RodaKita MVP v2.0</text>
-    </svg>`;
-
-    return {
-      stream: Readable.from([svgBadge]),
-      contentType: 'image/svg+xml',
-      filename: `dokumen-${userId}-${type}.svg`,
-      filePath: null,
-    };
+    throw new AppError(`Berkas fisik dokumen ${type.toUpperCase()} tidak ditemukan di server.`, 'NOT_FOUND', 404);
   },
 
-  async verifyDocument(userId, type, payload = {}, actor = {}, reqInfo = {}) {
+  async verifyDocument(userId, type, payload = {}, actorOrContext = {}, reqInfo = {}) {
+    const actor = actorOrContext?.user || actorOrContext || {};
+    const info = {
+      ip: reqInfo?.ip || actorOrContext?.ip,
+      userAgent: reqInfo?.userAgent || actorOrContext?.headers?.['user-agent'],
+    };
     const action = payload.action; // 'approve' | 'reject' | 'verify'
     const isApproved = action === 'approve' || action === 'verified';
     const newStatus = isApproved ? 'verified' : 'rejected';
@@ -145,8 +131,8 @@ const documentReviewService = {
         details: isApproved
           ? `Menyetujui dokumen ${type.toUpperCase()} pengguna #${user.id} (${user.name})`
           : `Menolak dokumen ${type.toUpperCase()} pengguna #${user.id}: ${rejectionReason.trim()}`,
-        ip: reqInfo.ip,
-        userAgent: reqInfo.userAgent,
+        ip: info.ip,
+        userAgent: info.userAgent,
       });
 
       // Realtime Outbox Events: Review Dokumen

@@ -72,7 +72,10 @@ const authController = {
       userAgent: req.headers['user-agent'],
     });
 
-    res.setHeader('Cache-Control', 'private, no-store');
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     res.setHeader('Content-Type', docData.contentType);
     res.setHeader('Content-Disposition', `inline; filename="${docData.filename}"`);
     return docData.stream.pipe(res);

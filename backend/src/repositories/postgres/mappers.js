@@ -53,18 +53,26 @@ function mapUser(row, documents = {}, documentPaths = {}) {
 
 function mapDocument(row) {
   if (!row) return null;
+  const relFilePath = row.stored_name ? `uploads/documents/${row.stored_name}` : null;
+  const uploadedIso = toISOString(row.uploaded_at);
+  const verifiedIso = toISOString(row.verified_at);
   return {
     id: row.id,
     userId: row.user_id,
     type: row.type,
     storedName: row.stored_name,
+    stored_name: row.stored_name,
     mimeType: row.mime_type,
     sizeBytes: Number(row.size_bytes),
-    filePath: row.stored_name ? `uploads/${row.stored_name}` : null,
+    filePath: relFilePath,
+    file_path: relFilePath,
     status: row.status,
     reviewerNote: row.reviewer_note || null,
-    uploadedAt: toISOString(row.uploaded_at),
-    verifiedAt: toISOString(row.verified_at),
+    uploadedAt: uploadedIso,
+    updatedAt: verifiedIso || uploadedIso,
+    uploaded_at: uploadedIso,
+    updated_at: verifiedIso || uploadedIso,
+    verifiedAt: verifiedIso,
   };
 }
 

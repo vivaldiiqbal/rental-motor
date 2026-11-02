@@ -99,7 +99,9 @@ const documentRepo = {
            mime_type = EXCLUDED.mime_type,
            size_bytes = EXCLUDED.size_bytes,
            status = EXCLUDED.status,
-           verified_at = EXCLUDED.verified_at
+           uploaded_at = now(),
+           verified_at = EXCLUDED.verified_at,
+           reviewer_note = NULL
          RETURNING *`,
         [Number(userId), type, finalName, mimeType, finalSize, status, verifiedAt],
       );
@@ -146,8 +148,8 @@ const documentRepo = {
       );
       const total = countRes.rows[0].total;
 
-      const page = Math.max(1, parseInt(paging.page, 10) || 1);
-      const limit = Math.max(1, parseInt(paging.limit, 10) || 10);
+      const page = Math.max(1, parseInt(paging.page ?? filter.page, 10) || 1);
+      const limit = Math.max(1, parseInt(paging.limit ?? filter.limit, 10) || 10);
       const offset = (page - 1) * limit;
 
       params.push(limit);
@@ -166,26 +168,39 @@ const documentRepo = {
         params,
       );
 
-      const items = res.rows.map((r) => ({
-        id: `doc-${r.user_id}-${r.type}`,
-        userId: r.user_id,
-        userName: r.user_name,
-        userEmail: r.user_email,
-        userPhone: r.user_phone,
-        type: r.type,
-        status: r.status,
-        filePath: r.stored_name ? `uploads/${r.stored_name}` : null,
-        fileUrl: `/api/admin/documents/${r.user_id}/${r.type}/file`,
-        idNumber: r.type === 'ktp'
-          ? (r.nik_last4 ? `••••••••••••${r.nik_last4}` : '3201************')
-          : 'SIM-C-********',
-        rejectionReason: r.reviewer_note || null,
-        uploadedAt: r.uploaded_at ? new Date(r.uploaded_at).toISOString() : null,
-        reviewedAt: r.verified_at ? new Date(r.verified_at).toISOString() : null,
-        reviewerId: r.reviewed_by || null,
-      }));
+      const items = res.rows.map((r) => {
+        const uploadedIso = r.uploaded_at ? new Date(r.uploaded_at).toISOString() : null;
+        const reviewedIso = r.verified_at ? new Date(r.verified_at).toISOString() : null;
+        const relFilePath = r.stored_name ? `uploads/documents/${r.stored_name}` : null;
+        return {
+          id: `doc-${r.user_id}-${r.type}`,
+          userId: r.user_id,
+          userName: r.user_name,
+          userEmail: r.user_email,
+          userPhone: r.user_phone,
+          type: r.type,
+          status: r.status,
+          storedName: r.stored_name || null,
+          stored_name: r.stored_name || null,
+          filePath: relFilePath,
+          file_path: relFilePath,
+          fileUrl: `/api/admin/documents/${r.user_id}/${r.type}/file`,
+          idNumber: r.type === 'ktp'
+            ? (r.nik_last4 ? `••••••••••••${r.nik_last4}` : '3201************')
+            : 'SIM-C-********',
+          rejectionReason: r.reviewer_note || null,
+          reviewerNote: r.reviewer_note || null,
+          uploadedAt: uploadedIso,
+          updatedAt: uploadedIso,
+          uploaded_at: uploadedIso,
+          updated_at: uploadedIso,
+          reviewedAt: reviewedIso,
+          verifiedAt: reviewedIso,
+          reviewerId: r.reviewed_by || null,
+        };
+      });
 
-      return { items, total };
+      return { items, total, page, limit };
     } catch (err) {
       throw handlePgError(err);
     }

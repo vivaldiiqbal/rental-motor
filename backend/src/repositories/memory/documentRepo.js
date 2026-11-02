@@ -7,12 +7,27 @@ const documentRepo = {
     if (!user) return [];
     const docs = user.documents || { ktp: 'not_uploaded', sim: 'not_uploaded' };
     const paths = user.documentPaths || {};
-    return Object.entries(docs).map(([type, status]) => ({
-      userId: num,
-      type,
-      status,
-      filePath: paths[type] || null,
-    }));
+    const meta = user.documentMeta || {};
+    return Object.entries(docs).map(([type, status]) => {
+      const docMeta = meta[type] || {};
+      const fp = paths[type] || null;
+      const storedName = docMeta.storedName || (fp ? String(fp).split('/').pop() : null);
+      const uploadedAt = docMeta.uploadedAt || user.createdAt || new Date().toISOString();
+      return {
+        userId: num,
+        type,
+        status,
+        storedName,
+        stored_name: storedName,
+        filePath: fp,
+        file_path: fp,
+        uploadedAt,
+        updatedAt: uploadedAt,
+        uploaded_at: uploadedAt,
+        updated_at: uploadedAt,
+        reviewerNote: docMeta.rejectionReason || null,
+      };
+    });
   },
 
   async findByUserIdAndType(userId, type) {
@@ -22,15 +37,35 @@ const documentRepo = {
 
   async upsert(docData) {
     return store.withLock(async (data) => {
-      const { userId, type, status, filePath } = docData;
+      const { userId, type, status, filePath, fileName, storedName, sizeBytes, mimeType } = docData;
       const user = data.users.find((u) => Number(u.id) === Number(userId));
+      const nowIso = new Date().toISOString();
+      const finalStoredName = storedName || fileName || (filePath ? String(filePath).split('/').pop() : null);
       if (user) {
         if (!user.documents) user.documents = { ktp: 'not_uploaded', sim: 'not_uploaded' };
         if (!user.documentPaths) user.documentPaths = {};
+        if (!user.documentMeta) user.documentMeta = {};
         if (status) user.documents[type] = status;
         if (filePath) user.documentPaths[type] = filePath;
+        user.documentMeta[type] = {
+          ...(user.documentMeta[type] || {}),
+          storedName: finalStoredName,
+          sizeBytes: sizeBytes || 0,
+          mimeType: mimeType || 'image/jpeg',
+          uploadedAt: nowIso,
+          updatedAt: nowIso,
+          rejectionReason: null,
+        };
       }
-      return { userId, type, status, filePath };
+      return {
+        userId,
+        type,
+        status,
+        storedName: finalStoredName,
+        filePath,
+        uploadedAt: nowIso,
+        updatedAt: nowIso,
+      };
     });
   },
 
@@ -44,6 +79,9 @@ const documentRepo = {
       ['ktp', 'sim'].forEach((type) => {
         const status = docs[type] || 'not_uploaded';
         const docMeta = meta[type] || {};
+        const fp = paths[type] || null;
+        const storedName = docMeta.storedName || (fp ? String(fp).split('/').pop() : null);
+        const uploadedIso = docMeta.uploadedAt || u.createdAt || new Date().toISOString();
         list.push({
           id: `doc-${u.id}-${type}`,
           userId: u.id,
@@ -52,10 +90,18 @@ const documentRepo = {
           userPhone: u.phone,
           type,
           status,
-          filePath: paths[type] || null,
+          storedName,
+          stored_name: storedName,
+          filePath: fp,
+          file_path: fp,
+          fileUrl: `/api/admin/documents/${u.id}/${type}/file`,
           rejectionReason: docMeta.rejectionReason || null,
+          reviewerNote: docMeta.rejectionReason || null,
           verifiedData: docMeta.verifiedData || null,
-          uploadedAt: docMeta.uploadedAt || u.createdAt || new Date().toISOString(),
+          uploadedAt: uploadedIso,
+          updatedAt: uploadedIso,
+          uploaded_at: uploadedIso,
+          updated_at: uploadedIso,
           reviewedAt: docMeta.reviewedAt || null,
           reviewerId: docMeta.reviewerId || null,
         });
@@ -81,12 +127,12 @@ const documentRepo = {
     list.sort((a, b) => (b.uploadedAt || '').localeCompare(a.uploadedAt || ''));
 
     const total = list.length;
-    const page = paging.page || 1;
-    const limit = paging.limit || 10;
+    const page = Math.max(1, parseInt(paging.page ?? filter.page, 10) || 1);
+    const limit = Math.max(1, parseInt(paging.limit ?? filter.limit, 10) || 10);
     const offset = (page - 1) * limit;
     const items = list.slice(offset, offset + limit);
 
-    return { items, total };
+    return { items, total, page, limit };
   },
 
   async updateStatus(userId, type, status, metaPayload = {}) {

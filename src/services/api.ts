@@ -48,6 +48,8 @@ export class ApiError extends Error {
 
 // Konfigurasi Kunci Storage
 const TOKEN_KEY = 'rk_token_v1';
+const ADMIN_TOKEN_KEY = 'rk_admin_token_v1';
+const CUSTOMER_TOKEN_KEY = 'rk_customer_token_v1';
 const SESSION_KEY = 'rk_session_v1';
 const isMock = import.meta.env.VITE_USE_MOCK === 'true';
 const baseURL = import.meta.env.VITE_API_URL || '/api';
@@ -65,7 +67,12 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config) => {
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem(TOKEN_KEY);
+      const isAdminCall =
+        config.url?.startsWith('/admin') ||
+        window.location.pathname.startsWith('/admin');
+      const token = isAdminCall
+        ? localStorage.getItem(ADMIN_TOKEN_KEY) || localStorage.getItem(TOKEN_KEY)
+        : localStorage.getItem(CUSTOMER_TOKEN_KEY) || localStorage.getItem(TOKEN_KEY);
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -847,6 +854,7 @@ export async function login(email: string, password: string): Promise<User> {
     localStorage.setItem(TOKEN_KEY, token);
     localStorage.setItem(SESSION_KEY, String(user.id));
     if (user.role === 'admin' || user.role === 'staff') {
+      localStorage.setItem(ADMIN_TOKEN_KEY, token);
       localStorage.setItem(
         'rk_admin_session_v2',
         JSON.stringify({
@@ -859,6 +867,8 @@ export async function login(email: string, password: string): Promise<User> {
           createdAt: user.createdAt || new Date().toISOString(),
         }),
       );
+    } else {
+      localStorage.setItem(CUSTOMER_TOKEN_KEY, token);
     }
   }
   return mapUser(user);
@@ -893,6 +903,7 @@ export async function register(input: {
   const { token, user } = res.data.data;
   if (typeof window !== 'undefined') {
     localStorage.setItem(TOKEN_KEY, token);
+    localStorage.setItem(CUSTOMER_TOKEN_KEY, token);
     localStorage.setItem(SESSION_KEY, String(user.id));
   }
   return mapUser(user);
@@ -991,12 +1002,23 @@ export async function getMyDocuments(): Promise<Record<'ktp' | 'sim', UserDocume
 }
 
 export function getDocumentUrl(kind: 'ktp' | 'sim', cacheBuster?: number | string): string {
-  const token = typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) || '' : '';
-  const base = baseURL.startsWith('http') ? baseURL : (typeof window !== 'undefined' ? `${window.location.origin}${baseURL}` : baseURL);
+  const token =
+    typeof window !== 'undefined'
+      ? localStorage.getItem(CUSTOMER_TOKEN_KEY) || localStorage.getItem(TOKEN_KEY) || ''
+      : '';
+  const apiOrigin =
+    import.meta.env.VITE_API_BASE_URL ||
+    (baseURL.startsWith('http')
+      ? baseURL.replace(/\/api\/?$/, '')
+      : typeof window !== 'undefined' && window.location.port === '5173'
+      ? 'http://localhost:5001'
+      : typeof window !== 'undefined'
+      ? window.location.origin
+      : '');
   const qs = new URLSearchParams();
   if (token) qs.set('token', token);
-  if (cacheBuster) qs.set('t', String(cacheBuster));
-  return `${base}/auth/documents/${kind}?${qs.toString()}`;
+  qs.set('t', String(cacheBuster || Date.now()));
+  return `${apiOrigin}/api/auth/documents/${kind}?${qs.toString()}`;
 }
 
 export async function getRenterProfile(): Promise<{ profile: RenterProfile | null; readiness: RenterReadiness }> {

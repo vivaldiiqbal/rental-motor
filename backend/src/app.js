@@ -97,9 +97,30 @@ app.use(sanitizeInput);
 // 10. Rate Limiter Global (300 request / 15 menit per IP)
 app.use(generalLimiter);
 
-// 11. Static file HANYA untuk direktori uploads publik (foto motor)
-// Catatan keamanan: direktori documents (KTP & SIM) TIDAK di-serve secara statis
+// 11. Static file untuk direktori uploads publik (foto motor)
+// serta akses terautentikasi untuk berkas di /uploads/documents/:filename (tanpa token tetap 404 demi keamanan)
 app.use('/uploads/motors', express.static(path.join(env.UPLOAD_PATH, 'motors')));
+app.get('/uploads/documents/:filename', (req, res, next) => {
+  const hasToken =
+    (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) ||
+    (req.query && typeof req.query.token === 'string' && req.query.token.trim() !== '');
+  if (!hasToken) {
+    return next();
+  }
+  const { authenticate } = require('./middleware/auth');
+  return authenticate(req, res, (err) => {
+    if (err) return next(err);
+    const fs = require('fs');
+    const safeName = path.basename(req.params.filename || '');
+    const filePath = path.join(env.UPLOAD_PATH, 'documents', safeName);
+    if (!safeName || !fs.existsSync(filePath)) {
+      return next();
+    }
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    return res.sendFile(path.resolve(filePath));
+  });
+});
 
 // 12. Root Welcome Endpoint
 app.get('/', (req, res) => {

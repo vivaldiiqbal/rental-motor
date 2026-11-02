@@ -27,7 +27,7 @@ async function getDocumentsForUsers(userIds, client = null) {
     }
     docsMap.get(r.user_id)[r.type] = r.status;
     if (r.stored_name) {
-      pathsMap.get(r.user_id)[r.type] = `uploads/${r.stored_name}`;
+      pathsMap.get(r.user_id)[r.type] = `uploads/documents/${r.stored_name}`;
     }
   });
 
@@ -223,7 +223,8 @@ const userRepo = {
                   : patch.documents[type])
               : null;
             const filePath = patch.documentPaths ? patch.documentPaths[type] : null;
-            const storedName = filePath ? path.basename(filePath) : `${type}_user_${id}.jpg`;
+            const explicitStoredName = filePath ? path.basename(filePath) : null;
+            const insertStoredName = explicitStoredName || `${type}_user_${id}.jpg`;
 
             if (rawStatus && rawStatus !== 'not_uploaded') {
               await db.query(
@@ -231,9 +232,9 @@ const userRepo = {
                  VALUES ($1, $2, $3, 'image/jpeg', 245600, $4::varchar, now(), CASE WHEN $4::varchar = 'verified' THEN now() ELSE NULL END)
                  ON CONFLICT (user_id, type) DO UPDATE SET
                    status = EXCLUDED.status,
-                   stored_name = EXCLUDED.stored_name,
+                   stored_name = COALESCE($5::varchar, user_documents.stored_name),
                    verified_at = CASE WHEN EXCLUDED.status = 'verified' THEN now() ELSE user_documents.verified_at END`,
-                [Number(id), type, storedName, rawStatus],
+                [Number(id), type, insertStoredName, rawStatus, explicitStoredName],
               );
             } else if (rawStatus === 'not_uploaded') {
               // Jika status di-reset ke not_uploaded, hapus dari user_documents

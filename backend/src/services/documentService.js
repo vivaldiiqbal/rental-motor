@@ -39,18 +39,6 @@ class DocumentService {
           nextDocs[kind] = 'pending';
           nextPaths[kind] = file.path;
           kindsUploaded.push(kind);
-
-          if (tx.driver === 'postgres' && tx.documentRepo) {
-            await tx.documentRepo.upsert({
-              userId,
-              type: kind,
-              filePath: file.path,
-              fileName: file.filename,
-              sizeBytes: file.size,
-              mimeType: file.mimetype,
-              status: 'pending',
-            });
-          }
         }
       }
 
@@ -58,6 +46,21 @@ class DocumentService {
         documents: nextDocs,
         documentPaths: nextPaths,
       });
+
+      for (const { kind, file } of uploadedDocs) {
+        if (['ktp', 'sim'].includes(kind) && tx.documentRepo) {
+          await tx.documentRepo.upsert({
+            userId,
+            type: kind,
+            filePath: file.path,
+            fileName: file.filename,
+            storedName: file.filename,
+            sizeBytes: file.size,
+            mimeType: file.mimetype,
+            status: 'pending',
+          });
+        }
+      }
 
       // Realtime Outbox Event: Dokumen Diunggah
       await eventBroadcaster.publish(tx, {
@@ -182,34 +185,7 @@ class DocumentService {
       };
     }
 
-    // Fallback tampilan SVG terenkripsi jika berkas fisik seed/demo belum tersimpan di disk
-    const { Readable } = require('stream');
-    const label = type === 'ktp' ? 'KTP (KARTU TANDA PENDUDUK)' : 'SIM C (SURAT IZIN MENGEMUDI)';
-    const statusColor = currentStatus === 'verified' ? '#4ade80' : currentStatus === 'rejected' ? '#f87171' : '#fbbf24';
-    const statusText = currentStatus === 'verified' ? '✓ Terverifikasi' : currentStatus === 'rejected' ? '✕ Ditolak' : '⏳ Menunggu Verifikasi';
-    const svgBadge = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="380" viewBox="0 0 600 380">
-      <rect width="600" height="380" rx="16" fill="#1e293b"/>
-      <rect x="20" y="20" width="560" height="340" rx="12" fill="#0f172a" stroke="#334155" stroke-width="2"/>
-      <text x="50" y="70" fill="#f8fafc" font-size="20" font-family="sans-serif" font-weight="bold">REPUBLIK INDONESIA</text>
-      <text x="50" y="100" fill="#38bdf8" font-size="14" font-family="sans-serif" font-weight="bold">${label}</text>
-      <rect x="50" y="130" width="120" height="150" rx="8" fill="#334155"/>
-      <circle cx="110" cy="180" r="30" fill="#64748b"/>
-      <path d="M70 250 C70 220, 150 220, 150 250 Z" fill="#64748b"/>
-      <text x="200" y="150" fill="#94a3b8" font-size="12" font-family="sans-serif">Nama Pemilik</text>
-      <text x="200" y="175" fill="#f8fafc" font-size="16" font-family="sans-serif" font-weight="bold">${user.name || `Pengguna #${userId}`}</text>
-      <text x="200" y="210" fill="#94a3b8" font-size="12" font-family="sans-serif">Status Dokumen</text>
-      <text x="200" y="235" fill="${statusColor}" font-size="14" font-family="sans-serif" font-weight="bold">${statusText}</text>
-      <text x="200" y="270" fill="#64748b" font-size="11" font-family="sans-serif">Dokumen Resmi Terdaftar • RodaKita</text>
-    </svg>`;
-
-    return {
-      stream: Readable.from([svgBadge]),
-      contentType: 'image/svg+xml',
-      filename: `dokumen-${userId}-${type}.svg`,
-      filePath: null,
-      status: currentStatus,
-      document: doc,
-    };
+    throw new AppError(`Berkas dokumen ${type.toUpperCase()} belum diunggah atau tidak ditemukan di disk.`, 'NOT_FOUND', 404);
   }
 
   /**
@@ -230,15 +206,23 @@ class DocumentService {
     for (const type of ['ktp', 'sim']) {
       const doc = docs.find((d) => d.type === type);
       const status = (doc && doc.status) || (user.documents && user.documents[type]) || 'not_uploaded';
+      const uploadedAt = doc ? doc.uploadedAt : null;
+      const ts = uploadedAt ? new Date(uploadedAt).getTime() : null;
       res[type] = {
         type,
         status,
         fileName: doc ? doc.storedName : null,
+        storedName: doc ? doc.storedName : null,
+        filePath: doc ? doc.filePath : null,
+        file_path: doc ? doc.filePath : null,
         sizeBytes: doc ? doc.sizeBytes : null,
-        uploadedAt: doc ? doc.uploadedAt : null,
+        uploadedAt,
+        updatedAt: uploadedAt,
+        uploaded_at: uploadedAt,
+        updated_at: uploadedAt,
         verifiedAt: doc ? doc.verifiedAt : null,
         reviewerNote: doc ? doc.reviewerNote : null,
-        fileUrl: status !== 'not_uploaded' ? `/api/auth/documents/${type}` : null,
+        fileUrl: status !== 'not_uploaded' ? `/api/auth/documents/${type}${ts ? `?t=${ts}` : ''}` : null,
       };
     }
     return res;
