@@ -14,10 +14,15 @@ if (env.USE_DB === 'memory') {
   store.init();
 } else if (env.USE_DB === 'postgres') {
   const { initPool } = require('./db/pool');
-  initPool().catch((err) => {
-    logger.error('[FATAL] Inisialisasi pool database gagal:', err);
-    process.exit(1);
-  });
+  initPool()
+    .then(async () => {
+      const { ensureAdminAccount } = require('./src/utils/ensureAdmin');
+      await ensureAdminAccount();
+    })
+    .catch((err) => {
+      logger.error('[FATAL] Inisialisasi pool database gagal:', err);
+      process.exit(1);
+    });
 }
 
 // 3. Jalankan background scheduler cron

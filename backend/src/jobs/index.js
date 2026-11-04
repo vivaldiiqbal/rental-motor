@@ -1,5 +1,4 @@
 const cron = require('node-cron');
-const expireBookingsJob = require('./expireBookings');
 const autoCompleteBookingsJob = require('./completeReminders');
 const { runGpsOfflineCheckJob, runGpsRetentionJob } = require('./gpsJobs');
 const logger = require('../utils/logger');

@@ -1,4 +1,3 @@
-const path = require('path');
 const authService = require('../services/authService');
 const documentService = require('../services/documentService');
 const { successResponse } = require('../utils/response');
