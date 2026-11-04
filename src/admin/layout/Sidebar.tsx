@@ -7,7 +7,6 @@ import {
   CalendarDays,
   Bike,
   Users,
-  Star,
   Tag,
   PackagePlus,
   MapPin,
@@ -197,13 +196,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 <div className="flex items-center gap-3">
                   <Users className="w-4 h-4 text-primary-200" />
                   <span>Pengguna & Staf</span>
-                </div>
-              </NavLink>
-
-              <NavLink to="/admin/reviews" className={navItemClass} onClick={onClose}>
-                <div className="flex items-center gap-3">
-                  <Star className="w-4 h-4 text-primary-200" />
-                  <span>Ulasan Pelanggan</span>
                 </div>
               </NavLink>
 
