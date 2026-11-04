@@ -3,9 +3,6 @@ const {
   parseISO,
   isValid,
   differenceInCalendarDays,
-  differenceInHours,
-  isBefore,
-  startOfDay,
   addDays,
   getDay,
 } = require('date-fns');
@@ -96,21 +93,21 @@ function isOverlapping(aStart, aEnd, bStart, bEnd) {
 
 /**
  * Cek apakah sebuah tanggal berada di masa lampau (sebelum hari ini WIB).
+ * Menggunakan perbandingan string ISO terhadap todayWIB() agar sepenuhnya
+ * imun dari perbedaan zona waktu mesin server (UTC vs WIB).
  */
 function isDateInPast(dateStr) {
-  const date = parseDate(dateStr);
-  if (!date) return true;
-  const today = startOfDay(clock.now());
-  return isBefore(date, today);
+  if (!dateStr || typeof dateStr !== 'string') return true;
+  return dateStr < todayWIB();
 }
 
 /**
- * Hitung selisih hari dari hari ini ke tanggal tujuan.
+ * Hitung selisih hari dari hari ini ke tanggal tujuan pada zona waktu WIB.
  */
 function getDaysFromToday(dateStr) {
   const target = parseDate(dateStr);
   if (!target) return 0;
-  const today = startOfDay(clock.now());
+  const today = parseDate(todayWIB());
   return differenceInCalendarDays(target, today);
 }
 

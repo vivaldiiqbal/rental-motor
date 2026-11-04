@@ -97,9 +97,19 @@ app.use(sanitizeInput);
 // 10. Rate Limiter Global (300 request / 15 menit per IP)
 app.use(generalLimiter);
 
-// 11. Static file untuk direktori uploads publik (foto motor)
-// serta akses terautentikasi untuk berkas di /uploads/documents/:filename (tanpa token tetap 404 demi keamanan)
-app.use('/uploads/motors', express.static(path.join(env.UPLOAD_PATH, 'motors')));
+// 11. Static file untuk direktori uploads publik (foto motor) dengan header nosniff
+app.use(
+  '/uploads/motors',
+  express.static(path.join(env.UPLOAD_PATH, 'motors'), {
+    maxAge: '1d',
+    setHeaders: (res) => {
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    },
+  })
+);
+
+// Serta akses terautentikasi dan terlindungi IDOR untuk berkas identitas di /uploads/documents/:filename
 app.get('/uploads/documents/:filename', (req, res, next) => {
   const hasToken =
     (req.headers.authorization && req.headers.authorization.startsWith('Bearer ')) ||
@@ -108,7 +118,7 @@ app.get('/uploads/documents/:filename', (req, res, next) => {
     return next();
   }
   const { authenticate } = require('./middleware/auth');
-  return authenticate(req, res, (err) => {
+  return authenticate(req, res, async (err) => {
     if (err) return next(err);
     const fs = require('fs');
     const safeName = path.basename(req.params.filename || '');
@@ -116,8 +126,48 @@ app.get('/uploads/documents/:filename', (req, res, next) => {
     if (!safeName || !fs.existsSync(filePath)) {
       return next();
     }
+
+    // RBAC & IDOR Guard:
+    // Admin dan Staff dapat melihat dokumen untuk moderasi verifikasi.
+    // Customer HANYA boleh mengakses file dokumen miliknya sendiri yang tercatat di user_documents.
+    const isStaffOrAdmin = req.user && (req.user.role === 'admin' || req.user.role === 'staff');
+    if (!isStaffOrAdmin) {
+      try {
+        let isOwner = false;
+        if (env.USE_DB === 'postgres') {
+          const { pool } = require('../db/pool');
+          const ownerCheck = await pool.query(
+            'SELECT 1 FROM user_documents WHERE stored_name = $1 AND user_id = $2 LIMIT 1',
+            [safeName, req.user.id]
+          );
+          isOwner = ownerCheck.rows.length > 0;
+        } else {
+          const { store } = require('./repositories');
+          const docs = store.getCollection('userDocuments') || [];
+          isOwner = docs.some(
+            (d) => (d.storedName === safeName || d.path?.includes(safeName)) && Number(d.userId) === Number(req.user.id)
+          );
+        }
+
+        if (!isOwner) {
+          return res.status(403).json({
+            success: false,
+            error: {
+              code: 'FORBIDDEN',
+              message: 'Akses ditolak: Anda tidak memiliki izin untuk melihat dokumen ini.',
+            },
+          });
+        }
+      } catch (dbErr) {
+        return next(dbErr);
+      }
+    }
+
+    res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
     return res.sendFile(path.resolve(filePath));
   });
 });
