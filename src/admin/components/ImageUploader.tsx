@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Trash2, Star, Image as ImageIcon, Link as LinkIcon, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Trash2, Star, Image as ImageIcon, Link as LinkIcon, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { adminApi } from '../services/adminApi';
 
 interface ImageUploaderProps {
   images: string[];
@@ -19,6 +20,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
   const [urlInput, setUrlInput] = useState('');
   const [showInput, setShowInput] = useState(false);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleAddUrl = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +61,7 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
     onChange(list);
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
@@ -85,19 +87,32 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
       return;
     }
 
-    // Gunakan FileReader dan bebaskan resource
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        onChange([...images, reader.result]);
-        toast.success('Foto berhasil diunggah.');
-      }
-    };
-    reader.onerror = () => {
-      toast.error('Gagal membaca berkas gambar.');
-    };
-    reader.readAsDataURL(file);
-    e.target.value = '';
+    setIsUploading(true);
+    const toastId = toast.loading('Mengunggah foto ke server...');
+    try {
+      const res = await adminApi.uploadMotorImage(file);
+      onChange([...images, res.url]);
+      toast.success('Foto armada berhasil diunggah ke server.', { id: toastId });
+    } catch (err: unknown) {
+      // Fallback ke FileReader jika terjadi kendala jaringan
+      const errorMsg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ||
+        (err as { message?: string })?.message ||
+        'Gagal mengunggah foto ke server.';
+      const reader = new FileReader();
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          onChange([...images, reader.result]);
+          toast.success('Foto disimpan secara lokal.', { id: toastId });
+        }
+      };
+      reader.onerror = () => {
+        toast.error(errorMsg, { id: toastId });
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setIsUploading(false);
+      e.target.value = '';
+    }
   };
 
   const handleDragStart = (e: React.DragEvent, index: number) => {
@@ -217,13 +232,14 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({
         {images.length < maxImages && (
           <div className="aspect-video rounded-xl border-2 border-dashed border-gray-300 hover:border-primary-400 bg-gray-50 flex flex-col items-center justify-center p-3 text-center transition-colors">
             <div className="flex gap-2 mb-2">
-              <label className="cursor-pointer p-2 bg-white rounded-lg border border-gray-200 hover:bg-gray-100 shadow-xs text-gray-700 transition-colors">
-                <ImageIcon className="w-4 h-4" />
+              <label className={`cursor-pointer p-2 bg-white rounded-lg border border-gray-200 hover:bg-gray-100 shadow-xs text-gray-700 transition-colors ${isUploading ? 'opacity-50 pointer-events-none' : ''}`}>
+                {isUploading ? <Loader2 className="w-4 h-4 animate-spin text-primary-600" /> : <ImageIcon className="w-4 h-4" />}
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
                   className="hidden"
                   onChange={handleFileUpload}
+                  disabled={isUploading}
                 />
               </label>
               <button

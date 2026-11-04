@@ -255,8 +255,74 @@ function mapBooking(row, items = [], timeline = []) {
     receivedById: row.return_received_by,
   } : null;
 
-  const paymentStatus = row.payment_status || (row.paid_at ? 'paid' : (['confirmed', 'active', 'completed'].includes(row.status) ? 'paid' : (row.status === 'cancelled' && refundAmount > 0 ? 'refunded' : 'pending')));
+  const paymentStatus = row.payment_status || (row.paid_at ? 'paid' : (['confirmed', 'active', 'return_requested', 'completed'].includes(row.status) ? 'paid' : (row.status === 'cancelled' && refundAmount > 0 ? 'refunded' : 'pending')));
   const paymentMethod = row.payment_method || (row.paid_at ? 'cash' : 'bank_transfer');
+  const handedAtIso = toISOString(row.handover_at || row.handover_handed_over_at);
+  const dueAtIso = handedAtIso
+    ? new Date(new Date(handedAtIso).getTime() + totalDays * 24 * 60 * 60 * 1000).toISOString()
+    : null;
+  const returnRequestedAtIso = toISOString(row.return_requested_at);
+  const returnRequest = returnRequestedAtIso
+    ? {
+        requestedAt: returnRequestedAtIso,
+        method: row.return_method || 'store',
+        notes: row.return_customer_notes || '',
+        photoUrl: row.return_photo_url || null,
+      }
+    : null;
+
+  const rawSnapAddons = Array.isArray(row.pricing_snapshot?.selectedAddOns)
+    ? row.pricing_snapshot.selectedAddOns
+    : [];
+  const itemAddons = (lineItems || []).filter((i) => i.kind === 'addon' || i.type === 'addon');
+  const resolvedAddons =
+    rawSnapAddons.length > 0
+      ? rawSnapAddons.map((a) => {
+          const ppd = Number(a.pricePerDay ?? a.price_per_day ?? 0);
+          const q = Number(a.qty ?? a.quantity ?? 1);
+          const d = Number(a.days || totalDays || 1);
+          const tot = Number(a.total ?? ppd * q * d);
+          return {
+            id: a.id ?? a.code,
+            addon_id: a.addon_id ?? a.id ?? a.code,
+            code: String(a.code || a.id),
+            name: a.name,
+            pricePerDay: ppd,
+            price_per_day: ppd,
+            days: d,
+            qty: q,
+            quantity: q,
+            total: tot,
+            price: tot,
+          };
+        })
+      : itemAddons.map((i, idx) => {
+          const unitPrice = Number(i.unit_price ?? i.unitPrice ?? 0);
+          const itemDays = Number(i.days || totalDays || 1);
+          const rawQty = Number(i.quantity || 1);
+          const qty =
+            itemDays > 0 && rawQty >= itemDays && rawQty % itemDays === 0
+              ? Math.max(1, Math.round(rawQty / itemDays))
+              : rawQty;
+          const cleanName = String(i.label || i.name || 'Layanan Tambahan').replace(
+            /\s*\(\d+x.*?\)\s*$/,
+            '',
+          );
+          const amount = Number(i.amount || unitPrice * qty * itemDays);
+          return {
+            id: i.id || `addon_${idx + 1}`,
+            addon_id: i.id || `addon_${idx + 1}`,
+            code: String(i.id || `addon_${idx + 1}`),
+            name: cleanName,
+            pricePerDay: unitPrice,
+            price_per_day: unitPrice,
+            days: itemDays,
+            qty,
+            quantity: qty,
+            total: amount,
+            price: amount,
+          };
+        });
 
   return {
     id: row.id,
@@ -297,7 +363,9 @@ function mapBooking(row, items = [], timeline = []) {
       pickup: deliveryPickup,
       dropoff: deliveryDropoff,
     },
-    addons: [],
+    addons: resolvedAddons,
+    selectedAddOns: resolvedAddons,
+    addonsList: resolvedAddons,
     renterSnapshot: row.renter_snapshot || null,
     renter: {
       name: row.renter_snapshot?.fullNameKtp || row.renter_name,
@@ -340,9 +408,16 @@ function mapBooking(row, items = [], timeline = []) {
     expiresAt: toISOString(row.expires_at),
     handover,
     returnInfo,
+    returnRequest,
+    returnRequestedAt: returnRequestedAtIso,
+    returnMethod: row.return_method || null,
+    returnCustomerNotes: row.return_customer_notes || null,
+    returnPhotoUrl: row.return_photo_url || null,
     startOdometer: handover?.startOdometer || null,
     initialFuel: handover?.initialFuel || null,
-    handedAt: handover?.handedAt || null,
+    handedAt: handedAtIso,
+    handoverAt: handedAtIso,
+    dueAt: dueAtIso,
     endOdometer: returnInfo?.endOdometer || null,
     finalFuel: returnInfo?.finalFuel || null,
     actualReturnDate: returnInfo?.returnedAt || null,
@@ -491,11 +566,13 @@ function mapAddon(row) {
   const price = Number(row.price_per_day);
   return {
     id: row.id,
+    addon_id: row.id,
     code: row.code,
     name: row.name,
     price,
     pricePerDay: price,
-    description: '',
+    price_per_day: price,
+    description: row.description || '',
     isActive: Boolean(row.is_active),
     createdAt: toISOString(row.created_at || new Date()),
     updatedAt: toISOString(row.updated_at || new Date()),

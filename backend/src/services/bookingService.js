@@ -103,7 +103,9 @@ function getTimelineTitle(status) {
     case BOOKING_STATUS.CONFIRMED:
       return 'Pembayaran Terkonfirmasi';
     case BOOKING_STATUS.ACTIVE:
-      return 'Sewa Berjalan';
+      return 'Sewa Berjalan (Serah Terima Kunci)';
+    case BOOKING_STATUS.RETURN_REQUESTED:
+      return 'Pengembalian Diajukan Pelanggan';
     case BOOKING_STATUS.COMPLETED:
       return 'Sewa Selesai';
     case BOOKING_STATUS.CANCELLED:
@@ -346,7 +348,7 @@ class BookingService {
           throw new AppError('Motor tidak ditemukan.', 'NOT_FOUND', 404);
         }
         const mRow = mRes.rows[0];
-        if (mRow.status !== 'active') {
+        if (mRow.status === 'maintenance' || mRow.status === 'inactive') {
           throw new AppError('Motor sedang tidak tersedia atau dalam masa servis berkala.', 'MOTOR_UNAVAILABLE', 409);
         }
         motor = await tx.motorRepo.findById(mRow.id);
@@ -355,7 +357,7 @@ class BookingService {
         if (!motor) {
           throw new AppError('Motor tidak ditemukan.', 'NOT_FOUND', 404);
         }
-        if (motor.status !== 'available' && motor.status !== 'active') {
+        if (motor.status === 'maintenance' || motor.status === 'inactive') {
           throw new AppError('Motor sedang tidak tersedia atau dalam masa servis berkala.', 'MOTOR_UNAVAILABLE', 409);
         }
       }
@@ -566,7 +568,9 @@ class BookingService {
           deliveryTotal: pricing.deliveryFee,
           deliveryBreakdown: pricing.deliveryBreakdown,
           addOnsTotal: pricing.addOnsTotal,
+          addonsTotal: pricing.addOnsTotal,
           selectedAddOns: pricing.selectedAddOns,
+          addonsList: pricing.selectedAddOns,
           discount: pricing.discount,
           promoDiscount: pricing.discount,
           promoCode: promoCode ? promoCode.trim().toUpperCase() : null,
@@ -692,6 +696,16 @@ class BookingService {
           status: 'pending',
           amount: initialAmount,
         });
+      }
+
+      // Update otomatis status motor di PostgreSQL menjadi 'rented' saat dipesan/disewa
+      if (tx.driver === 'postgres' && tx.client) {
+        await tx.client.query(
+          "UPDATE motorcycles SET status = 'rented', updated_at = now() WHERE id = $1",
+          [Number(motor.id)],
+        );
+      } else {
+        await tx.motorRepo.update(motor.id, { status: 'rented' });
       }
 
       // Realtime Outbox Events: booking baru dibuat
@@ -1017,6 +1031,22 @@ class BookingService {
           [rawBooking.id, timelineNote, cancelledBy],
         );
 
+        // Otomatis kembalikan status motor menjadi 'active' (tersedia) jika tidak ada booking aktif lain
+        const remaining = await tx.client.query(
+          `SELECT 1 FROM bookings
+           WHERE motorcycle_id = $1
+             AND status IN ('pending', 'confirmed', 'active')
+             AND id <> $2
+           LIMIT 1`,
+          [Number(booking.motorId), Number(rawBooking.id)],
+        );
+        if (remaining.rows.length === 0) {
+          await tx.client.query(
+            "UPDATE motorcycles SET status = 'active', updated_at = now() WHERE id = $1 AND status = 'rented'",
+            [Number(booking.motorId)],
+          );
+        }
+
         updated = await tx.bookingRepo.findById(rawBooking.id);
       } else {
         updated = await tx.bookingRepo.update(booking.id, {
@@ -1131,6 +1161,141 @@ class BookingService {
         ...updated,
         capabilities: finalCapabilities,
         refundAmount,
+        motor: sanitizeMotor(motor, user.role === 'admin'),
+        timeline: buildTimeline(updated),
+      };
+    });
+  }
+
+  /**
+   * Pengajuan pengembalian motor oleh pelanggan saat sewa sedang berjalan (active -> return_requested).
+   */
+  async requestReturn(idOrCode, payload = {}, user) {
+    const fs = require('fs');
+    const path = require('path');
+
+    return await transaction(async (tx) => {
+      const isNum = /^\d+$/.test(String(idOrCode));
+      let booking = null;
+
+      if (tx.driver === 'postgres' && tx.client) {
+        const bRes = await tx.client.query(
+          `SELECT * FROM bookings WHERE ${isNum ? 'id = $1' : 'upper(booking_code) = upper($1)'} FOR UPDATE`,
+          [isNum ? Number(idOrCode) : String(idOrCode).trim()],
+        );
+        if (bRes.rows.length === 0) {
+          throw new AppError('Data pemesanan tidak ditemukan.', 'NOT_FOUND', 404);
+        }
+        booking = await tx.bookingRepo.findById(bRes.rows[0].id);
+      } else {
+        booking = store
+          .getCollection('bookings')
+          .find((b) => (isNum ? Number(b.id) === Number(idOrCode) : b.code.toUpperCase() === String(idOrCode).toUpperCase()));
+        if (!booking) {
+          throw new AppError('Data pemesanan tidak ditemukan.', 'NOT_FOUND', 404);
+        }
+      }
+
+      if (user.role !== 'admin' && user.role !== 'staff' && Number(booking.userId) !== Number(user.id)) {
+        throw new AppError('Data pemesanan tidak ditemukan.', 'NOT_FOUND', 404);
+      }
+
+      if (booking.status === BOOKING_STATUS.RETURN_REQUESTED) {
+        const motor = await tx.motorRepo.findById(booking.motorId);
+        const payment = await tx.paymentRepo.findByBookingId(booking.id);
+        return {
+          ...booking,
+          idempotent: true,
+          capabilities: bookingCapabilities(booking, payment, user),
+          motor: sanitizeMotor(motor, user.role === 'admin'),
+          timeline: buildTimeline(booking),
+        };
+      }
+
+      if (booking.status !== BOOKING_STATUS.ACTIVE) {
+        throw new AppError(
+          `Pengajuan pengembalian hanya dapat dilakukan saat sewa berstatus 'active'. Status saat ini: '${booking.status}'.`,
+          'INVALID_STATUS_TRANSITION',
+          400,
+        );
+      }
+
+      const rawMethod = String(payload.returnMethod || payload.method || 'store').toLowerCase().trim();
+      const returnMethod = rawMethod === 'pickup' ? 'pickup' : 'store';
+      const returnCustomerNotes = String(payload.notes || payload.returnCustomerNotes || '').trim();
+      let returnPhotoUrl = payload.photoUrl || payload.returnPhotoUrl || null;
+
+      // Jika dikirim dalam format data:image/... base64, simpan ke direktori uploads/documents/
+      if (typeof returnPhotoUrl === 'string' && returnPhotoUrl.startsWith('data:image/')) {
+        try {
+          const matches = returnPhotoUrl.match(/^data:image\/([a-zA-Z0-9+]+);base64,(.+)$/);
+          if (matches) {
+            const ext = matches[1] === 'png' ? '.png' : matches[1] === 'webp' ? '.webp' : '.jpg';
+            const buf = Buffer.from(matches[2], 'base64');
+            const dir = path.join(env.UPLOAD_DIR, 'documents');
+            if (!fs.existsSync(dir)) {
+              fs.mkdirSync(dir, { recursive: true });
+            }
+            const fileName = `return_booking_${booking.id}_${Date.now()}${ext}`;
+            fs.writeFileSync(path.join(dir, fileName), buf);
+            returnPhotoUrl = `uploads/documents/${fileName}`;
+          }
+        } catch {
+          // fallback biarkan atau kosongkan jika gagal simpan
+        }
+      }
+
+      const nowIso = clock.nowIso();
+      const nextVersion = Number(booking.version || 1) + 1;
+      const methodLabel = returnMethod === 'pickup' ? 'Minta Jemput Petugas (Pickup)' : 'Kembalikan ke Toko';
+      const timelineNote = `Pelanggan mengajukan pengembalian motor (${methodLabel}).${returnCustomerNotes ? ` Catatan: ${returnCustomerNotes}` : ''}`;
+
+      const currentTimeline = Array.isArray(booking.timeline) ? [...booking.timeline] : buildTimeline(booking);
+      currentTimeline.push({
+        status: BOOKING_STATUS.RETURN_REQUESTED,
+        actor: 'customer',
+        at: nowIso,
+        note: timelineNote,
+      });
+
+      const updated = await tx.bookingRepo.update(booking.id, {
+        status: BOOKING_STATUS.RETURN_REQUESTED,
+        returnRequestedAt: nowIso,
+        returnMethod,
+        returnCustomerNotes,
+        returnPhotoUrl,
+        version: nextVersion,
+        timeline: currentTimeline,
+      });
+
+      await eventBroadcaster.publish(tx, {
+        type: 'booking.updated',
+        entityId: String(booking.id),
+        userId: Number(booking.userId),
+        version: nextVersion,
+        payload: {
+          id: booking.id,
+          code: booking.code,
+          status: BOOKING_STATUS.RETURN_REQUESTED,
+          returnMethod,
+          returnRequestedAt: nowIso,
+        },
+      });
+      await eventBroadcaster.publish(tx, {
+        type: 'counters.changed',
+        entityId: 'bookings',
+        userId: null,
+        payload: { action: 'return_requested' },
+      });
+
+      const [motor, payment] = await Promise.all([
+        tx.motorRepo.findById(booking.motorId),
+        tx.paymentRepo.findByBookingId(booking.id),
+      ]);
+
+      return {
+        ...updated,
+        capabilities: bookingCapabilities(updated, payment, user),
         motor: sanitizeMotor(motor, user.role === 'admin'),
         timeline: buildTimeline(updated),
       };

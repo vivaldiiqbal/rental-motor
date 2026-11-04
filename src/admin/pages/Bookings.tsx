@@ -6,6 +6,8 @@ import {
   Key,
   RotateCcw,
   Ban,
+  AlertTriangle,
+  Clock,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { adminApi } from '../services/adminApi';
@@ -20,6 +22,7 @@ import { formatDate } from '../../utils/formatDate';
 import { usePermission } from '../hooks/usePermission';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { useRealtime } from '../../context/RealtimeContext';
+import { computeRentalTimer, formatDateTimeID } from '../../components/booking/RentalCountdownCard';
 
 export const Bookings: React.FC = () => {
   const navigate = useNavigate();
@@ -37,6 +40,7 @@ export const Bookings: React.FC = () => {
     pending: 0,
     confirmed: 0,
     active: 0,
+    return_requested: 0,
     completed: 0,
     cancelled: 0,
   });
@@ -339,17 +343,36 @@ export const Bookings: React.FC = () => {
       render: (item) => {
         const diffDays = Math.max(
           1,
-          Math.ceil(
-            (new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) /
-              (1000 * 60 * 60 * 24),
-          ),
+          item.days ||
+            Math.ceil(
+              (new Date(item.endDate).getTime() - new Date(item.startDate).getTime()) /
+                (1000 * 60 * 60 * 24),
+            ),
         );
+        const timer =
+          item.status === 'active' || item.status === 'return_requested'
+            ? computeRentalTimer(item.handedAt || item.handoverAt, item.dueAt, diffDays, item.pricePerDay)
+            : null;
         return (
           <div>
             <p className="text-gray-800">
               {formatDate(item.startDate)} - {formatDate(item.endDate)}
             </p>
-            <p className="text-[11px] text-gray-400 font-medium">Durasi: {diffDays} hari</p>
+            <p className="text-[11px] text-gray-400 font-medium">
+              Durasi: {diffDays} hari ({diffDays * 24} jam)
+            </p>
+            {timer?.hasHandover && (
+              <div className="mt-1 flex flex-wrap items-center gap-1">
+                <span className="text-[10px] text-gray-500">
+                  Batas: {formatDateTimeID(timer.dueMs)}
+                </span>
+                {timer.isOverdue && (
+                  <span className="inline-flex items-center gap-0.5 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-700">
+                    <AlertTriangle className="h-2.5 w-2.5" /> Lewat 24 Jam
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         );
       },
@@ -414,29 +437,36 @@ export const Bookings: React.FC = () => {
             </button>
           )}
 
-          {item.status === 'confirmed' && can('bookings:handover') && (
-            <button
-              type="button"
-              disabled={actionLoading}
-              onClick={() => navigate(`/admin/bookings/${item.id}`)}
-              title="Buka Formulir Serah Terima Kunci"
-              className="p-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50"
-            >
-              <Key className="w-4 h-4" />
-            </button>
-          )}
+          {(item.status === 'confirmed' ||
+            (item.status === 'pending' && item.paymentMethod === 'cash')) &&
+            can('bookings:handover') && (
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => navigate(`/admin/bookings/${item.id}`)}
+                title="Buka Formulir Serah Terima Kunci"
+                className="p-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <Key className="w-4 h-4" />
+              </button>
+            )}
 
-          {item.status === 'active' && can('bookings:return') && (
-            <button
-              type="button"
-              disabled={actionLoading}
-              onClick={() => navigate(`/admin/bookings/${item.id}`)}
-              title="Buka Formulir Pengembalian Unit"
-              className="p-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg transition-colors disabled:opacity-50"
-            >
-              <RotateCcw className="w-4 h-4" />
-            </button>
-          )}
+          {(item.status === 'active' || item.status === 'return_requested') &&
+            can('bookings:return') && (
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => navigate(`/admin/bookings/${item.id}`)}
+                title="Verifikasi Pengembalian & Selesaikan Sewa"
+                className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
+                  item.status === 'return_requested'
+                    ? 'bg-purple-100 text-purple-800 hover:bg-purple-200 ring-1 ring-purple-300'
+                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
+                }`}
+              >
+                <RotateCcw className="w-4 h-4" />
+              </button>
+            )}
 
           {role === 'admin' && (item.status === 'pending' || item.status === 'confirmed') && (
             <button
@@ -469,9 +499,21 @@ export const Bookings: React.FC = () => {
     { key: 'pending', label: 'Menunggu', count: statusCounts.pending ?? 0 },
     { key: 'confirmed', label: 'Dikonfirmasi', count: statusCounts.confirmed ?? 0 },
     { key: 'active', label: 'Aktif Sewa', count: statusCounts.active ?? 0 },
+    {
+      key: 'return_requested',
+      label: 'Pengembalian Diajukan',
+      count: statusCounts.return_requested ?? 0,
+    },
     { key: 'completed', label: 'Selesai', count: statusCounts.completed ?? 0 },
     { key: 'cancelled', label: 'Dibatalkan', count: statusCounts.cancelled ?? 0 },
   ];
+
+  const returnRequestedCount = statusCounts.return_requested ?? 0;
+  const overdue24hCount = bookings.filter((b) => {
+    if (b.status !== 'active' && b.status !== 'return_requested') return false;
+    const t = computeRentalTimer(b.handedAt || b.handoverAt, b.dueAt, b.days || 1, b.pricePerDay);
+    return t.hasHandover && t.isOverdue;
+  }).length;
 
   const hasActiveFilters =
     statusParam !== 'all' ||
@@ -519,6 +561,56 @@ export const Bookings: React.FC = () => {
           );
         })}
       </div>
+
+      {/* Notifikasi Pengajuan Pengembalian & Keterlambatan 24 Jam */}
+      {(returnRequestedCount > 0 || overdue24hCount > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {returnRequestedCount > 0 && (
+            <div className="p-3.5 bg-purple-50 border border-purple-200 rounded-xl flex items-center justify-between gap-3 text-xs text-purple-950">
+              <div className="flex items-center gap-2.5">
+                <Clock className="w-4 h-4 text-purple-700 shrink-0" />
+                <div>
+                  <span className="font-bold block">
+                    {returnRequestedCount} Pengajuan Pengembalian Motor Menunggu Verifikasi
+                  </span>
+                  <span className="text-purple-700 text-[11px]">
+                    Pelanggan telah mengajukan pengembalian motor. Klik untuk verifikasi & selesaikan sewa.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleStatusTab('return_requested')}
+                className="px-3 py-1.5 bg-purple-700 hover:bg-purple-800 text-white rounded-lg font-bold whitespace-nowrap"
+              >
+                Lihat ({returnRequestedCount})
+              </button>
+            </div>
+          )}
+          {overdue24hCount > 0 && (
+            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl flex items-center justify-between gap-3 text-xs text-rose-950">
+              <div className="flex items-center gap-2.5">
+                <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                <div>
+                  <span className="font-bold block">
+                    {overdue24hCount} Sewa Melewati Batas Waktu 24 Jam Sejak Serah Kunci
+                  </span>
+                  <span className="text-rose-700 text-[11px]">
+                    Denda keterlambatan otomatis dihitung saat verifikasi pengembalian.
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleStatusTab('active')}
+                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold whitespace-nowrap"
+              >
+                Cek Sewa Aktif
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Active Motor Filter Banner */}
       {selectedMotor !== 'all' && (

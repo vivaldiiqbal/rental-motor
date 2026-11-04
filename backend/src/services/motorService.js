@@ -39,15 +39,15 @@ class MotorService {
     const types = type ? (Array.isArray(type) ? type : type.split(',').map((s) => s.trim())) : [];
     const brands = brand ? (Array.isArray(brand) ? brand : brand.split(',').map((s) => s.trim())) : [];
 
-    // Ambil motor yang hanya berstatus 'available' (motor maintenance/inactive dilarang tampil di publik)
+    // Ambil motor yang berstatus 'available' dan 'rented' (motor maintenance/inactive dilarang tampil di publik)
     let allMotors = [];
     if (process.env.USE_DB === 'postgres') {
-      const res = await motorRepo.findAll({ status: MOTOR_STATUS.AVAILABLE }, { limit: 1000 });
+      const res = await motorRepo.findAll({ status: ['available', 'rented'] }, { limit: 1000 });
       allMotors = res.items;
     } else {
       allMotors = store
         .getCollection('motors')
-        .filter((m) => m.status === MOTOR_STATUS.AVAILABLE)
+        .filter((m) => m.status === MOTOR_STATUS.AVAILABLE || m.status === 'rented')
         .map((m) => ({ ...m }));
     }
 
@@ -99,9 +99,12 @@ class MotorService {
     // Tempelkan ketersediaan, estimasi harga, dan status isFavorite
     let processed = await Promise.all(
       filtered.map(async (m) => {
-        let isFree = true;
-        if (start && end) {
+        let isFree = m.status !== 'rented';
+        if (isFree && start && end) {
           isFree = await availabilityService.isMotorAvailable(m.id, start, end);
+        } else if (isFree) {
+          const hasActiveRental = await availabilityService.hasActiveRentalNow(m.id);
+          if (hasActiveRental) isFree = false;
         }
 
         const estimatedTotal = days > 0 ? m.pricePerDay * days : undefined;
@@ -122,6 +125,7 @@ class MotorService {
           images: clean.images || [],
           ratingAvg: clean.rating || 5.0,
           reviewCount: clean.reviewCount || 0,
+          status: m.status === 'rented' || !isFree ? 'rented' : (clean.status || 'available'),
           available: isFree,
           ...(estimatedTotal !== undefined && { estimatedTotal }),
           isFavorite: userFavSet.has(Number(clean.id)),
@@ -215,8 +219,14 @@ class MotorService {
       }
     }
 
-    if (!motor || motor.status !== MOTOR_STATUS.AVAILABLE) {
+    if (!motor || (motor.status !== MOTOR_STATUS.AVAILABLE && motor.status !== 'rented')) {
       throw new AppError('Motor tidak ditemukan.', 'NOT_FOUND', 404);
+    }
+
+    const isCurrentlyRented = motor.status === 'rented' || (await availabilityService.hasActiveRentalNow(motor.id));
+    if (isCurrentlyRented) {
+      motor.status = 'rented';
+      motor.available = false;
     }
 
     const ratingDistribution = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
@@ -291,6 +301,39 @@ class MotorService {
     return sanitizeMotors(motors);
   }
 
+  async getPublicAddons() {
+    try {
+      const { addonRepo } = require('../repositories');
+      if (addonRepo) {
+        const list = await addonRepo.findAll({ isActive: true });
+        if (Array.isArray(list) && list.length > 0) {
+          return list.map((a) => ({
+            id: a.id,
+            addon_id: a.id,
+            code: a.code || String(a.id),
+            name: a.name,
+            pricePerDay: Number(a.pricePerDay ?? a.price ?? 0),
+            price_per_day: Number(a.pricePerDay ?? a.price ?? 0),
+            description: a.description || '',
+            isActive: Boolean(a.isActive),
+          }));
+        }
+      }
+    } catch (e) {
+      // fallback ke RENTAL_RULES.addOns
+    }
+    return RENTAL_RULES.addOns.map((a, idx) => ({
+      id: a.id,
+      addon_id: idx + 1,
+      code: a.id,
+      name: a.name,
+      pricePerDay: a.pricePerDay,
+      price_per_day: a.pricePerDay,
+      description: a.description || '',
+      isActive: true,
+    }));
+  }
+
   async getRentalOptions() {
     let settings = null;
     try {
@@ -298,10 +341,11 @@ class MotorService {
     } catch (e) {
       // fallback jika database kosong / error
     }
+    const activeAddons = await this.getPublicAddons();
 
     return {
       pickupLocations: RENTAL_RULES.pickupLocations,
-      addOns: RENTAL_RULES.addOns,
+      addOns: activeAddons,
       deliveryFees: {
         pickup: RENTAL_RULES.deliveryFeePerTrip,
         dropoff: RENTAL_RULES.deliveryFeePerTrip,

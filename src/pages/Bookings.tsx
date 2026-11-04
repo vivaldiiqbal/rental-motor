@@ -4,6 +4,7 @@ import { Seo } from '../components/Seo';
 import { PageContainer } from '../components/layout/PageContainer';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
 import { BookingCard } from '../components/booking/BookingCard';
+import { RequestReturnModal } from '../components/booking/RequestReturnModal';
 import { Button } from '../components/ui/Button';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorState } from '../components/ui/ErrorState';
@@ -12,24 +13,24 @@ import { useAsync } from '../hooks/useAsync';
 import { useAuth } from '../context/AuthContext';
 import { getBookings, getMotorsByIds } from '../services/api';
 import { cn } from '../lib/cn';
-import type { Booking } from '../types';
+import type { Booking, Motor } from '../types';
+import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
+import { useRealtime } from '../context/RealtimeContext';
 
 type Filter = 'all' | 'upcoming' | 'active' | 'history';
 
 const filters: Array<{ id: Filter; label: string; match: (b: Booking) => boolean }> = [
   { id: 'all', label: 'Semua', match: () => true },
   { id: 'upcoming', label: 'Akan datang', match: (b) => b.status === 'pending' || b.status === 'confirmed' },
-  { id: 'active', label: 'Berjalan', match: (b) => b.status === 'active' },
-  { id: 'history', label: 'Riwayat', match: (b) => b.status === 'completed' || b.status === 'cancelled' },
+  { id: 'active', label: 'Berjalan', match: (b) => b.status === 'active' || b.status === 'return_requested' },
+  { id: 'history', label: 'Riwayat', match: (b) => b.status === 'completed' || b.status === 'cancelled' || b.status === 'expired' },
 ];
-
-import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
-import { useRealtime } from '../context/RealtimeContext';
 
 export default function Bookings() {
   const { user } = useAuth();
   const { registerRefetch } = useRealtime();
   const [filter, setFilter] = useState<Filter>('all');
+  const [returnTarget, setReturnTarget] = useState<{ booking: Booking; motor: Motor | null } | null>(null);
 
   const { data, loading, error, reload } = useAsync(async () => {
     if (!user) return { bookings: [] as Booking[], motors: [] };
@@ -98,9 +99,25 @@ export default function Bookings() {
         {!error &&
           data &&
           list.map((b) => (
-            <BookingCard key={b.id} booking={b} motor={data.motors.find((m) => m.id === b.motorId) ?? null} />
+            <BookingCard
+              key={b.id}
+              booking={b}
+              motor={data.motors.find((m) => m.id === b.motorId) ?? null}
+              onRequestReturn={(bk, m) => setReturnTarget({ booking: bk, motor: m })}
+            />
           ))}
       </div>
+
+      <RequestReturnModal
+        open={Boolean(returnTarget)}
+        booking={returnTarget?.booking ?? null}
+        motorName={returnTarget?.motor?.name}
+        onClose={() => setReturnTarget(null)}
+        onSuccess={() => {
+          setReturnTarget(null);
+          reload();
+        }}
+      />
     </PageContainer>
   );
 }

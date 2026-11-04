@@ -8,6 +8,7 @@ const logger = require('../utils/logger');
 
 // Lazy-loaded repo to avoid circular dependencies
 let pricingRepo = null;
+let addonRepo = null;
 function getPricingRepo() {
   if (!pricingRepo) {
     try {
@@ -19,6 +20,17 @@ function getPricingRepo() {
   }
   return pricingRepo;
 }
+function getAddonRepo() {
+  if (!addonRepo) {
+    try {
+      const repos = require('../repositories');
+      addonRepo = repos.addonRepo;
+    } catch (e) {
+      /* ignore */
+    }
+  }
+  return addonRepo;
+}
 
 /**
  * Service kalkulasi harga sewa, aturan harga dinamis (weekend, seasonal, custom),
@@ -28,6 +40,7 @@ class PricingService {
   constructor() {
     this._cachedRules = null;
     this._cachedTiers = null;
+    this._cachedAddons = null;
     this._cacheExpiresAt = 0;
     this._cacheTtlMs = 30000; // 30 detik
   }
@@ -38,6 +51,7 @@ class PricingService {
   invalidateCache() {
     this._cachedRules = null;
     this._cachedTiers = null;
+    this._cachedAddons = null;
     this._cacheExpiresAt = 0;
   }
 
@@ -46,16 +60,19 @@ class PricingService {
    */
   async loadActivePricingConfig() {
     const now = Date.now();
-    if (this._cachedRules && this._cachedTiers && now < this._cacheExpiresAt) {
+    if (this._cachedRules && this._cachedTiers && this._cachedAddons && now < this._cacheExpiresAt) {
       return {
         rules: this._cachedRules,
         tiers: this._cachedTiers,
+        addonsCatalog: this._cachedAddons,
       };
     }
 
     let rules = null;
     let tiers = null;
+    let addonsCatalog = null;
     const repo = getPricingRepo();
+    const aRepo = getAddonRepo();
 
     if (repo) {
       try {
@@ -70,18 +87,30 @@ class PricingService {
       }
     }
 
+    if (aRepo) {
+      try {
+        addonsCatalog = await aRepo.findAll({ isActive: true });
+      } catch (err) {
+        logger.warn(`[PRICING] Gagal memuat active addons dari basis data: ${err.message}. Menggunakan default.`);
+      }
+    }
+
     if (!rules || rules.length === 0) {
       rules = [...DEFAULT_PRICING_RULES];
     }
     if (!tiers || tiers.length === 0) {
       tiers = [...DEFAULT_DISCOUNT_TIERS];
     }
+    if (!addonsCatalog || addonsCatalog.length === 0) {
+      addonsCatalog = [...RENTAL_RULES.addOns];
+    }
 
     this._cachedRules = rules;
     this._cachedTiers = tiers;
+    this._cachedAddons = addonsCatalog;
     this._cacheExpiresAt = now + this._cacheTtlMs;
 
-    return { rules, tiers };
+    return { rules, tiers, addonsCatalog };
   }
 
   /**
@@ -239,8 +268,8 @@ class PricingService {
    * Kalkulasi harga sewa lengkap (asinkron, membaca aturan dari basis data).
    */
   async calculatePriceAsync(params) {
-    const { rules, tiers } = await this.loadActivePricingConfig();
-    return this.calculatePriceInternal(params, { rules, tiers });
+    const { rules, tiers, addonsCatalog } = await this.loadActivePricingConfig();
+    return this.calculatePriceInternal(params, { rules, tiers, addonsCatalog });
   }
 
   /**
@@ -249,7 +278,8 @@ class PricingService {
   calculatePrice(params) {
     const rules = this._cachedRules || DEFAULT_PRICING_RULES;
     const tiers = this._cachedTiers || DEFAULT_DISCOUNT_TIERS;
-    return this.calculatePriceInternal(params, { rules, tiers });
+    const addonsCatalog = this._cachedAddons || RENTAL_RULES.addOns;
+    return this.calculatePriceInternal(params, { rules, tiers, addonsCatalog });
   }
 
   /**
@@ -271,7 +301,7 @@ class PricingService {
       promoCode = null,
       deposit = 0,
     },
-    { rules = [], tiers = [] } = {},
+    { rules = [], tiers = [], addonsCatalog = [] } = {},
   ) {
     const safeDays = Math.max(1, parseInt(days, 10) || 1);
     const safePricePerDay = toIntegerMoney(pricePerDay);
@@ -328,28 +358,76 @@ class PricingService {
       deliveryFee = RENTAL_RULES.deliveryFeePerTrip * 2;
     }
 
-    // 4. Hitung Add-ons (harga x hari x qty)
-    const rawAddonList = Array.isArray(addons) && addons.length > 0 ? addons : (Array.isArray(addOnIds) ? addOnIds : []);
+    // 4. Hitung Add-ons (harga server x hari x qty)
+    const rawAddonList =
+      Array.isArray(addons) && addons.length > 0
+        ? addons
+        : Array.isArray(addOnIds)
+          ? addOnIds
+          : [];
+    const activeCatalog =
+      Array.isArray(addonsCatalog) && addonsCatalog.length > 0
+        ? addonsCatalog
+        : RENTAL_RULES.addOns;
+
     let addOnsTotal = 0;
     const selectedAddOns = [];
+    const addonAccumulator = new Map();
 
     rawAddonList.forEach((entry) => {
-      let addonId = typeof entry === 'string' ? entry : entry.id;
-      let qty = typeof entry === 'object' && entry.qty ? Math.max(1, parseInt(entry.qty, 10)) : 1;
+      if (entry === null || entry === undefined) return;
+      const addonKey =
+        typeof entry === 'string' || typeof entry === 'number'
+          ? String(entry)
+          : String(entry.addon_id ?? entry.id ?? entry.code ?? '');
+      if (!addonKey) return;
 
-      const item = RENTAL_RULES.addOns.find((a) => a.id === addonId);
+      const rawQty =
+        typeof entry === 'object' ? Number(entry.quantity ?? entry.qty ?? 1) : 1;
+      if (!Number.isFinite(rawQty) || rawQty <= 0) return;
+      const qty = Math.min(20, Math.max(1, Math.floor(rawQty)));
+
+      const keyLower = addonKey.toLowerCase();
+      const item =
+        activeCatalog.find(
+          (a) =>
+            String(a.id) === addonKey ||
+            (a.code && String(a.code).toLowerCase() === keyLower) ||
+            (a.name && String(a.name).toLowerCase() === keyLower),
+        ) ||
+        RENTAL_RULES.addOns.find(
+          (a) =>
+            String(a.id) === addonKey ||
+            (a.code && String(a.code).toLowerCase() === keyLower),
+        );
+
       if (item) {
-        const itemTotal = item.pricePerDay * safeDays * qty;
-        addOnsTotal += itemTotal;
-        selectedAddOns.push({
-          id: item.id,
-          name: item.name,
-          pricePerDay: item.pricePerDay,
-          days: safeDays,
-          qty,
-          total: itemTotal,
-        });
+        const canonicalKey = String(item.code || item.id);
+        const existing = addonAccumulator.get(canonicalKey);
+        if (existing) {
+          existing.qty = Math.min(20, existing.qty + qty);
+        } else {
+          addonAccumulator.set(canonicalKey, { item, qty });
+        }
       }
+    });
+
+    addonAccumulator.forEach(({ item, qty }) => {
+      const unitPrice = toIntegerMoney(item.pricePerDay ?? item.price ?? 0);
+      const itemTotal = unitPrice * safeDays * qty;
+      addOnsTotal += itemTotal;
+      selectedAddOns.push({
+        id: item.code || item.id,
+        addon_id: item.id,
+        code: item.code || String(item.id),
+        name: item.name,
+        pricePerDay: unitPrice,
+        price_per_day: unitPrice,
+        days: safeDays,
+        qty,
+        quantity: qty,
+        total: itemTotal,
+      });
     });
 
     // 5. Promo Diskon

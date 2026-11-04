@@ -5,10 +5,13 @@ const { successResponse } = require('../../utils/response');
 
 const adminBookingController = {
   async getBookings(req, res) {
-    const result = await adminBookingService.getBookings(req.query);
+    const result = await adminBookingService.getBookings(req.query, {
+      page: req.query?.page,
+      limit: req.query?.limit,
+    });
     return successResponse(res, {
       data: result.items,
-      meta: {
+      meta: result.meta || {
         total: result.total,
         page: result.page,
         limit: result.limit,
@@ -18,13 +21,13 @@ const adminBookingController = {
   },
 
   async getBookingById(req, res) {
-    const booking = await adminBookingService.getBookingById(req.params.id);
+    const booking = await adminBookingService.getBookingById(req.params.id, req.user);
     return successResponse(res, { data: booking });
   },
 
   async confirmManualPayment(req, res) {
-    const reqContext = { user: req.user, ip: req.ip, headers: req.headers };
-    const result = await adminBookingService.confirmManualPayment(req.params.id, req.body, reqContext);
+    const reqInfo = { ip: req.ip, userAgent: req.headers?.['user-agent'] };
+    const result = await adminBookingService.confirmManualPayment(req.params.id, req.body, req.user, reqInfo);
     return successResponse(res, {
       data: result,
       message: 'Pembayaran manual berhasil dikonfirmasi.',
@@ -32,8 +35,8 @@ const adminBookingController = {
   },
 
   async handover(req, res) {
-    const reqContext = { user: req.user, ip: req.ip, headers: req.headers };
-    const result = await handoverService.handoverMotor(req.params.id, req.body, reqContext);
+    const reqInfo = { ip: req.ip, userAgent: req.headers?.['user-agent'] };
+    const result = await handoverService.handoverMotor(req.params.id, req.body, req.user, reqInfo);
     return successResponse(res, {
       data: result,
       message: 'Serah terima unit berhasil dicatat. Status sewa kini aktif.',
@@ -41,8 +44,8 @@ const adminBookingController = {
   },
 
   async returnMotor(req, res) {
-    const reqContext = { user: req.user, ip: req.ip, headers: req.headers };
-    const result = await returnService.returnMotor(req.params.id, req.body, reqContext);
+    const reqInfo = { ip: req.ip, userAgent: req.headers?.['user-agent'] };
+    const result = await returnService.returnMotor(req.params.id, req.body, req.user, reqInfo);
     return successResponse(res, {
       data: result,
       message: 'Pengembalian unit berhasil dicatat. Transaksi sewa selesai.',
@@ -50,8 +53,8 @@ const adminBookingController = {
   },
 
   async cancelBooking(req, res) {
-    const reqContext = { user: req.user, ip: req.ip, headers: req.headers };
-    const result = await adminBookingService.cancelBooking(req.params.id, req.body, reqContext);
+    const reqInfo = { ip: req.ip, userAgent: req.headers?.['user-agent'] };
+    const result = await adminBookingService.cancelBooking(req.params.id, req.body, req.user, reqInfo);
     return successResponse(res, {
       data: result,
       message: 'Pemesanan berhasil dibatalkan oleh admin.',
@@ -59,8 +62,8 @@ const adminBookingController = {
   },
 
   async addNote(req, res) {
-    const reqContext = { user: req.user, ip: req.ip, headers: req.headers };
-    const note = await adminBookingService.addNote(req.params.id, req.body.note, reqContext);
+    const reqInfo = { ip: req.ip, userAgent: req.headers?.['user-agent'] };
+    const note = await adminBookingService.addNote(req.params.id, req.body.note, req.user, reqInfo);
     return successResponse(res, {
       data: note,
       statusCode: 201,
@@ -69,8 +72,8 @@ const adminBookingController = {
   },
 
   async markDepositRefunded(req, res) {
-    const reqContext = { user: req.user, ip: req.ip, headers: req.headers };
-    const result = await adminBookingService.markDepositRefunded(req.params.id, reqContext);
+    const reqInfo = { ip: req.ip, userAgent: req.headers?.['user-agent'] };
+    const result = await adminBookingService.markDepositRefunded(req.params.id, req.user, reqInfo);
     return successResponse(res, {
       data: result,
       message: 'Deposit berhasil ditandai telah dikembalikan.',

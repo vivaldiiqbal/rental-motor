@@ -9,24 +9,26 @@ import { site } from '../config/site';
 import { countDays, parseDate, toISODate } from '../lib/format';
 import { readStorage, writeStorage } from '../lib/storage';
 import type {
+  AddonInputItem,
   Booking,
+  BookingQuote,
   BookingStatus,
+  ContentBlocks,
   DocStatus,
+  FaqItem,
   Motor,
   MotorQuery,
+  PageContent,
   Paged,
   PaymentMethod,
   PickupMethod,
-  Renter,
-  Review,
-  User,
-  PageContent,
-  FaqItem,
-  ContentBlocks,
-  BookingQuote,
+  PublicAddon,
   QuoteInput,
+  Renter,
   RenterProfile,
   RenterReadiness,
+  Review,
+  User,
   UserDocumentInfo,
 } from '../types';
 import { seedBookings } from './mock/bookings';
@@ -257,22 +259,37 @@ function mapMotor(m: any): Motor {
 }
 
 function mapBooking(b: any): Booking {
+  const rawPayment = b.payment || b.paymentMethod || 'transfer';
+  const normalizedPayment: PaymentMethod =
+    rawPayment === 'cash'
+      ? 'cash'
+      : rawPayment === 'ewallet' || rawPayment === 'qris'
+      ? 'ewallet'
+      : 'transfer';
+  const handedAt = b.handedAt || b.handoverAt || b.handover?.handedAt || b.handover?.handedOverAt || null;
+  const days = Number(b.days || b.totalDays) || 1;
+  const dueAt =
+    b.dueAt ||
+    (handedAt ? new Date(new Date(handedAt).getTime() + days * 24 * 60 * 60 * 1000).toISOString() : null);
+
   return {
     id: String(b.id),
-    code: b.code,
-    motorId: String(b.motorId),
+    code: b.code || b.bookingCode,
+    motorId: String(b.motorId || b.motorcycleId),
     userId: String(b.userId),
     startDate: b.startDate,
     endDate: b.endDate,
-    days: Number(b.days) || 1,
+    days,
     pricePerDay: Number(b.pricePerDay || b.pricing?.pricePerDay || 0),
     subtotal: Number(b.subtotal || b.pricing?.subtotal || b.total || 0),
     deposit: Number(b.deposit || b.pricing?.deposit || 0),
-    total: Number(b.totalDibayar || b.total || b.pricing?.totalDibayar || 0),
+    total: Number(b.totalDibayar || b.grandTotal || b.total || b.pricing?.totalDibayar || 0),
     status: b.status,
     createdAt: b.createdAt ? b.createdAt.substring(0, 10) : toISODate(new Date()),
     pickup: b.pickup || 'store',
-    payment: b.payment || 'transfer',
+    payment: normalizedPayment,
+    paymentMethod: b.paymentMethod || normalizedPayment,
+    paymentStatus: b.paymentStatus || (b.paidAt ? 'paid' : 'pending'),
     renter: b.renter || {
       name: b.userName || '',
       phone: b.userPhone || '',
@@ -282,6 +299,28 @@ function mapBooking(b: any): Booking {
     },
     termsVersion: b.termsVersion ?? null,
     pricingSnapshot: b.pricingSnapshot ?? b.pricing ?? null,
+    addOnsTotal: Number(b.addOnsTotal ?? b.addonsTotal ?? b.pricingSnapshot?.addOnsTotal ?? b.pricing?.addOnsTotal ?? 0),
+    addons: b.selectedAddOns ?? b.addonsList ?? b.addons ?? b.pricingSnapshot?.selectedAddOns ?? [],
+    selectedAddOns: b.selectedAddOns ?? b.addonsList ?? b.addons ?? b.pricingSnapshot?.selectedAddOns ?? [],
+    addonsList: b.addonsList ?? b.selectedAddOns ?? b.addons ?? b.pricingSnapshot?.selectedAddOns ?? [],
+    handedAt,
+    handoverAt: handedAt,
+    dueAt,
+    handover: b.handover ?? null,
+    returnInfo: b.returnInfo ?? null,
+    returnRequest: b.returnRequest ?? (b.returnRequestedAt ? {
+      requestedAt: b.returnRequestedAt,
+      method: b.returnMethod || 'store',
+      notes: b.returnCustomerNotes || '',
+      photoUrl: b.returnPhotoUrl || null,
+    } : null),
+    returnRequestedAt: b.returnRequestedAt ?? null,
+    returnMethod: b.returnMethod ?? null,
+    returnCustomerNotes: b.returnCustomerNotes ?? null,
+    returnPhotoUrl: b.returnPhotoUrl ?? null,
+    depositReturned: Boolean(b.depositReturned || b.returnInfo?.depositRefundedAt),
+    lateFee: Number(b.lateFee ?? b.returnInfo?.lateFee ?? 0),
+    capabilities: b.capabilities ?? null,
   };
 }
 
@@ -580,11 +619,74 @@ export interface CreateBookingInput {
   startDate: string;
   endDate: string;
   pickup: PickupMethod;
+  pickupLocation?: string;
+  address?: string;
   payment: PaymentMethod;
   renter: Renter;
   promoCode?: string;
-  addons?: string[];
+  addons?: AddonInputItem[];
   acceptedTermsVersion?: number | null;
+}
+
+const DEFAULT_PUBLIC_ADDONS: PublicAddon[] = [
+  {
+    id: 1,
+    addon_id: 1,
+    code: 'extra_helmet',
+    name: 'Helm Tambahan (SNI Bersih)',
+    pricePerDay: 10000,
+    price_per_day: 10000,
+    description: 'Helm SNI bersih, higienis, dan wangi untuk penumpang / boncenger',
+    isActive: true,
+  },
+  {
+    id: 2,
+    addon_id: 2,
+    code: 'raincoat',
+    name: 'Jas Hujan Ponco / Setelan',
+    pricePerDay: 5000,
+    price_per_day: 5000,
+    description: 'Jas hujan setelan baju & celana tebal anti bocor di segala cuaca',
+    isActive: true,
+  },
+  {
+    id: 3,
+    addon_id: 3,
+    code: 'phone_holder',
+    name: 'Penyangga HP (Phone Holder) Anti Getar',
+    pricePerDay: 5000,
+    price_per_day: 5000,
+    description: 'Phone holder stang kokoh dengan peredam anti getar untuk navigasi Maps',
+    isActive: true,
+  },
+];
+
+export async function getPublicAddons(): Promise<PublicAddon[]> {
+  if (isMock) {
+    await delay(100);
+    return DEFAULT_PUBLIC_ADDONS;
+  }
+  try {
+    const res = await apiClient.get('/addons');
+    const list = res.data?.data;
+    if (Array.isArray(list) && list.length > 0) {
+      return list
+        .filter((a: any) => a.isActive !== false)
+        .map((a: any) => ({
+          id: a.id,
+          addon_id: a.addon_id ?? a.id,
+          code: a.code || String(a.id),
+          name: a.name,
+          pricePerDay: Number(a.pricePerDay ?? a.price_per_day ?? a.price ?? 0),
+          price_per_day: Number(a.price_per_day ?? a.pricePerDay ?? a.price ?? 0),
+          description: a.description || '',
+          isActive: Boolean(a.isActive !== false),
+        }));
+    }
+    return DEFAULT_PUBLIC_ADDONS;
+  } catch {
+    return DEFAULT_PUBLIC_ADDONS;
+  }
 }
 
 export async function getBookingQuote(input: QuoteInput): Promise<BookingQuote> {
@@ -714,6 +816,7 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
       status: 'pending',
       createdAt: toISODate(new Date()),
       pickup: input.pickup,
+      pickupLocation: input.pickupLocation || input.address,
       payment: input.payment,
       renter: input.renter,
     };
@@ -730,6 +833,7 @@ export async function createBooking(input: CreateBookingInput): Promise<Booking>
       startDate: input.startDate,
       endDate: input.endDate,
       pickup: input.pickup,
+      pickupLocation: input.pickupLocation || input.address,
       payment: input.payment,
       renter: input.renter,
       promoCode: input.promoCode || undefined,
@@ -788,6 +892,38 @@ export async function cancelBooking(id: string): Promise<Booking> {
   const res = await apiClient.post(`/bookings/${id}/cancel`, {
     reason: 'Dibatalkan oleh pelanggan melalui aplikasi.',
   });
+  return mapBooking(res.data.data);
+}
+
+export async function requestBookingReturn(
+  idOrCode: string,
+  payload: { returnMethod: 'store' | 'pickup'; notes?: string; photoUrl?: string | null },
+): Promise<Booking> {
+  if (isMock) {
+    await delay(350);
+    const list = allBookings();
+    const target = list.find((b) => b.id === idOrCode || b.code === idOrCode);
+    if (!target) throw new ApiError('Booking tidak ditemukan.', 'NOT_FOUND');
+    const nowIso = new Date().toISOString();
+    const updated: Booking = {
+      ...target,
+      status: 'return_requested',
+      returnRequestedAt: nowIso,
+      returnMethod: payload.returnMethod,
+      returnCustomerNotes: payload.notes || '',
+      returnPhotoUrl: payload.photoUrl || null,
+      returnRequest: {
+        requestedAt: nowIso,
+        method: payload.returnMethod,
+        notes: payload.notes || '',
+        photoUrl: payload.photoUrl || null,
+      },
+    };
+    saveBookings(list.map((b) => (b.id === target.id ? updated : b)));
+    return updated;
+  }
+
+  const res = await apiClient.post(`/bookings/${idOrCode}/request-return`, payload);
   return mapBooking(res.data.data);
 }
 

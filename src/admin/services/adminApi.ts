@@ -53,6 +53,23 @@ async function getAdminHeaders(): Promise<Record<string, string>> {
 }
 
 function mapAdminBooking(b: any): AdminBooking {
+  const handedAt = b.handedAt || b.handoverAt || b.handover?.handedAt || b.handover?.handedOverAt || b.handover?.at || null;
+  const days = Math.max(
+    1,
+    Number(b.days || b.totalDays) ||
+      Math.round((new Date(b.endDate).getTime() - new Date(b.startDate).getTime()) / (1000 * 60 * 60 * 24)) ||
+      1,
+  );
+  const dueAt =
+    b.dueAt ||
+    (handedAt ? new Date(new Date(handedAt).getTime() + days * 24 * 60 * 60 * 1000).toISOString() : null);
+  const returnInfo = b.returnInfo
+    ? {
+        ...b.returnInfo,
+        refundDeposit: b.returnInfo.refundDeposit ?? b.returnInfo.depositRefund ?? b.depositRefund ?? 0,
+        underpayment: b.returnInfo.underpayment ?? b.returnInfo.amountDue ?? b.amountDue ?? 0,
+      }
+    : null;
   return {
     ...b,
     id: String(b.id),
@@ -69,8 +86,21 @@ function mapAdminBooking(b: any): AdminBooking {
     paymentStatus: b.paymentStatus || 'pending',
     paymentMethod: b.paymentMethod || 'transfer',
     timeline: b.timeline || [],
+    handedAt,
+    handoverAt: handedAt,
+    dueAt,
+    addOnsTotal: Number(b.addOnsTotal ?? b.addonsTotal ?? b.pricingSnapshot?.addOnsTotal ?? b.pricing?.addOnsTotal ?? 0),
+    addons: b.selectedAddOns || b.addonsList || b.addons || b.pricingSnapshot?.selectedAddOns || [],
+    selectedAddOns: b.selectedAddOns || b.addonsList || b.addons || b.pricingSnapshot?.selectedAddOns || [],
+    addonsList: b.addonsList || b.selectedAddOns || b.addons || b.pricingSnapshot?.selectedAddOns || [],
     handover: b.handover || null,
-    returnInfo: b.returnInfo || null,
+    returnInfo,
+    returnRequest: b.returnRequest || (b.returnRequestedAt ? {
+      requestedAt: b.returnRequestedAt,
+      method: b.returnMethod || 'store',
+      notes: b.returnCustomerNotes || '',
+      photoUrl: b.returnPhotoUrl || null,
+    } : null),
   };
 }
 
@@ -657,26 +687,53 @@ export const adminApi = {
         const headers = await getAdminHeaders();
         const res = await apiClient.get('/admin/bookings', { params, headers });
         if (res.data && res.data.data) {
-          const mapped: AdminBooking[] = res.data.data.map((b: any) => ({
-            ...b,
-            id: String(b.id),
-            bookingCode: b.bookingCode || b.code,
-            code: b.code || b.bookingCode,
-            motorId: String(b.motorId || b.motorcycleId || b.motor?.id || ''),
-            motorPlate: b.motorPlate || b.motor?.plate || b.motor?.licensePlate || '-',
-            motorName: b.motor?.name || b.motorName || 'Motor',
-            motorImage: (b.motor?.images && b.motor.images[0]) || b.motorImage,
-            userName: b.renter?.name || b.userName,
-            userPhone: b.renter?.phone || b.userPhone,
-            userEmail: b.renter?.email || b.userEmail,
-            totalPrice: b.grandTotal ?? b.total ?? 0,
-            status: b.status,
-            timeline: b.timeline || [],
-            startOdometer: b.startOdometer ?? b.handover?.startOdometer ?? b.handover?.odometerStart,
-            endOdometer: b.endOdometer ?? b.returnInfo?.endOdometer ?? b.returnInfo?.odometerEnd,
-            startFuelLevel: b.startFuelLevel ?? b.handover?.startFuelLevel ?? b.handover?.fuelStart,
-            endFuelLevel: b.endFuelLevel ?? b.returnInfo?.endFuelLevel ?? b.returnInfo?.fuelEnd,
-          }));
+          const mapped: AdminBooking[] = res.data.data.map((b: any) => {
+            const handedAt = b.handedAt || b.handoverAt || b.handover?.handedAt || b.handover?.handedOverAt || null;
+            const days = Math.max(
+              1,
+              Number(b.days || b.totalDays) ||
+                Math.round((new Date(b.endDate).getTime() - new Date(b.startDate).getTime()) / (1000 * 60 * 60 * 24)) ||
+                1,
+            );
+            const dueAt =
+              b.dueAt ||
+              (handedAt ? new Date(new Date(handedAt).getTime() + days * 24 * 60 * 60 * 1000).toISOString() : null);
+            const isOverdue =
+              Boolean(b.isOverdue) ||
+              ((b.status === 'active' || b.status === 'return_requested') &&
+                dueAt !== null &&
+                Date.now() > new Date(dueAt).getTime());
+            return {
+              ...b,
+              id: String(b.id),
+              bookingCode: b.bookingCode || b.code,
+              code: b.code || b.bookingCode,
+              motorId: String(b.motorId || b.motorcycleId || b.motor?.id || ''),
+              motorPlate: b.motorPlate || b.motor?.plate || b.motor?.licensePlate || '-',
+              motorName: b.motor?.name || b.motorName || 'Motor',
+              motorImage: (b.motor?.images && b.motor.images[0]) || b.motorImage,
+              userName: b.renter?.name || b.userName,
+              userPhone: b.renter?.phone || b.userPhone,
+              userEmail: b.renter?.email || b.userEmail,
+              totalPrice: b.grandTotal ?? b.total ?? 0,
+              status: b.status,
+              handedAt,
+              handoverAt: handedAt,
+              dueAt,
+              isOverdue,
+              returnRequest: b.returnRequest || (b.returnRequestedAt ? {
+                requestedAt: b.returnRequestedAt,
+                method: b.returnMethod || 'store',
+                notes: b.returnCustomerNotes || '',
+                photoUrl: b.returnPhotoUrl || null,
+              } : null),
+              timeline: b.timeline || [],
+              startOdometer: b.startOdometer ?? b.handover?.startOdometer ?? b.handover?.odometerStart,
+              endOdometer: b.endOdometer ?? b.returnInfo?.endOdometer ?? b.returnInfo?.odometerEnd,
+              startFuelLevel: b.startFuelLevel ?? b.handover?.startFuelLevel ?? b.handover?.fuelStart,
+              endFuelLevel: b.endFuelLevel ?? b.returnInfo?.endFuelLevel ?? b.returnInfo?.fuelEnd,
+            };
+          });
           return {
             data: mapped,
             meta: {
@@ -866,6 +923,8 @@ export const adminApi = {
         originalDocsChecked: payload.originalDocsChecked,
         depositReceived: payload.depositReceived,
         photos: payload.photos || [],
+        forceHandover: true,
+        confirmCashPayment: true,
       } : {
         startOdometer: 10000,
         initialFuel: 'penuh',
@@ -873,6 +932,8 @@ export const adminApi = {
         originalDocsChecked: true,
         depositReceived: true,
         photos: [],
+        forceHandover: true,
+        confirmCashPayment: true,
       };
       const res = await apiClient.post(
         `/admin/bookings/${bookingId}/handover`,
@@ -966,7 +1027,22 @@ export const adminApi = {
     const latePercent = store.settings.lateFeePercentPerHour ?? 10;
 
     const pickupTime = booking.pickupTime || '09:00';
-    const scheduled = new Date(`${booking.endDate}T${pickupTime}:00+07:00`);
+    const handedAt =
+      booking.handoverAt ||
+      booking.handedAt ||
+      (booking.handover as any)?.handedAt ||
+      (booking.handover as any)?.handedOverAt ||
+      booking.handover?.at ||
+      null;
+    const totalDays = Math.max(
+      1,
+      Number(booking.days) ||
+        Math.round((new Date(booking.endDate).getTime() - new Date(booking.startDate).getTime()) / (1000 * 60 * 60 * 24)) ||
+        1,
+    );
+    const scheduled = handedAt
+      ? new Date(new Date(handedAt).getTime() + totalDays * 24 * 60 * 60 * 1000)
+      : new Date(`${booking.endDate}T${pickupTime}:00+07:00`);
     const actual = new Date(actualReturnTimeStr);
 
     let diffMinutes = Math.floor((actual.getTime() - scheduled.getTime()) / (1000 * 60));
@@ -1017,6 +1093,7 @@ export const adminApi = {
       notes?: string;
       damageFee?: number;
       otherFee?: number;
+      confirmDepositRefund?: boolean;
     } | string,
   ): Promise<AdminBooking> {
     if (!isMock) {
@@ -1028,11 +1105,13 @@ export const adminApi = {
         notes: payload.notes,
         damageFee: payload.damageFee || 0,
         otherFee: payload.otherFee || 0,
+        confirmDepositRefund: payload.confirmDepositRefund ?? true,
       } : {
         returnTime: new Date().toISOString(),
         notes: payload,
         damageFee: 0,
         otherFee: 0,
+        confirmDepositRefund: true,
       };
       const res = await apiClient.post(
         `/admin/bookings/${bookingId}/return`,
@@ -1723,9 +1802,26 @@ export const adminApi = {
     return updated;
   },
 
+  async uploadMotorImage(file: File): Promise<{ url: string; filename?: string }> {
+    if (!isMock) {
+      const formData = new FormData();
+      formData.append('image', file);
+      const res = await apiClient.post('/admin/motorcycles/upload-image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      return res.data?.data || res.data;
+    }
+
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ url: reader.result as string, filename: file.name });
+      reader.readAsDataURL(file);
+    });
+  },
+
   async deleteMotor(id: string): Promise<void> {
     if (!isMock) {
-      await apiClient.patch(`/admin/motorcycles/${id}/status`, { status: 'inactive' });
+      await apiClient.delete(`/admin/motorcycles/${id}`);
       return;
     }
 
@@ -1744,10 +1840,10 @@ export const adminApi = {
       throw new Error(`Unit motor tidak dapat dinonaktifkan karena memiliki booking aktif/mendatang: ${list}`);
     }
 
-    // Tidak ada hapus permanen: alihkan status ke maintenance/nonaktif
-    motor.status = 'maintenance';
+    // Hapus dari mock store
+    store.motors = store.motors.filter((m) => m.id !== id);
     saveStore(store);
-    recordAudit('DEACTIVATE_MOTOR', 'Armada', `Nonaktifkan unit motor ${motor.name} (${motor.plate})`, motor.id);
+    recordAudit('DELETE_MOTOR', 'Armada', `Hapus unit motor ${motor.name} (${motor.plate})`, motor.id);
   },
 
   async toggleMotorStatus(id: string, newStatus: 'available' | 'maintenance'): Promise<Motor> {
@@ -2350,6 +2446,12 @@ export const adminApi = {
   // 11. Addons
   // ==========================================================================
   async getAddons(params?: { search?: string }): Promise<ApiResponse<AddonItem[]>> {
+    if (!isMock) {
+      const res = await apiClient.get('/admin/addons', { params });
+      const items = res.data?.data || res.data || [];
+      return { data: items };
+    }
+
     await delay(250);
     checkSimulateError();
     const store = getStoredData();
@@ -2362,6 +2464,11 @@ export const adminApi = {
   },
 
   async createAddon(addonData: Partial<AddonItem>): Promise<AddonItem> {
+    if (!isMock) {
+      const res = await apiClient.post('/admin/addons', addonData);
+      return res.data?.data || res.data;
+    }
+
     await delay(350);
     checkSimulateError();
     const store = getStoredData();
@@ -2380,6 +2487,11 @@ export const adminApi = {
   },
 
   async updateAddon(id: string, patch: Partial<AddonItem>): Promise<AddonItem> {
+    if (!isMock) {
+      const res = await apiClient.put(`/admin/addons/${id}`, patch);
+      return res.data?.data || res.data;
+    }
+
     await delay(300);
     checkSimulateError();
     const store = getStoredData();
@@ -2393,6 +2505,11 @@ export const adminApi = {
   },
 
   async deleteAddon(id: string): Promise<void> {
+    if (!isMock) {
+      await apiClient.delete(`/admin/addons/${id}`);
+      return;
+    }
+
     await delay(300);
     checkSimulateError();
     const store = getStoredData();

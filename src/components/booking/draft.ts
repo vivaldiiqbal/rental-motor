@@ -1,14 +1,16 @@
 import { isBefore, isEqual, startOfDay } from 'date-fns';
-import type { PaymentMethod, PickupMethod, User } from '../../types';
+import type { PaymentMethod, PickupMethod, User, CartAddonItem } from '../../types';
 import { site } from '../../config/site';
 import { countDays, parseDate } from '../../lib/format';
 
-export const BOOKING_STEPS = ['Detail Sewa', 'Data Penyewa', 'Pembayaran'] as const;
+export const BOOKING_STEPS = ['Konfirmasi Pengambilan & Data Penyewa', 'Verifikasi Pembayaran'] as const;
 
 export interface BookingDraft {
   startDate?: string;
   endDate?: string;
   pickup: PickupMethod;
+  address?: string;
+  addons?: CartAddonItem[];
   name: string;
   phone: string;
   email: string;
@@ -28,6 +30,8 @@ export function emptyDraft(user: User | null, startDate?: string, endDate?: stri
     startDate,
     endDate,
     pickup: 'store',
+    address: '',
+    addons: [],
     name: user?.name ?? '',
     phone: user?.phone ?? '',
     email: user?.email ?? '',

@@ -26,6 +26,7 @@ import { RealtimeProvider } from './context/RealtimeContext';
 import { FavoritesProvider } from './context/FavoritesContext';
 import { CompareProvider } from './context/CompareContext';
 import { SiteSettingsProvider } from './context/SiteSettingsContext';
+import { BookingCartProvider } from './context/BookingCartContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Layout } from './components/layout/Layout';
 import { RequireAuth } from './components/layout/RequireAuth';
@@ -96,8 +97,9 @@ export default function App() {
             <SiteSettingsProvider>
               <FavoritesProvider>
                 <CompareProvider>
-                <Suspense fallback={<PageLoader />}>
-                <Routes>
+                  <BookingCartProvider>
+                    <Suspense fallback={<PageLoader />}>
+                      <Routes>
                   {/* Rute Publik */}
                   <Route element={<Layout />}>
                     <Route index element={<Home />} />
@@ -159,9 +161,10 @@ export default function App() {
                 </Routes>
               </Suspense>
               <Toaster position="top-center" toastOptions={{ duration: 3500 }} />
-            </CompareProvider>
-          </FavoritesProvider>
-          </SiteSettingsProvider>
+                  </BookingCartProvider>
+                </CompareProvider>
+              </FavoritesProvider>
+            </SiteSettingsProvider>
           </RealtimeProvider>
         </AuthProvider>
       </HelmetProvider>

@@ -153,11 +153,11 @@ export const Calendar: React.FC = () => {
       };
     }
 
-    // 2. Check Booking (pending, confirmed, active, completed)
+    // 2. Check Booking (pending, confirmed, active, return_requested)
     const booking = bookings.find(
       (b) =>
         b.motorId === motorId &&
-        ['pending', 'confirmed', 'active'].includes(b.status) &&
+        ['pending', 'confirmed', 'active', 'return_requested'].includes(b.status) &&
         dayStr >= b.startDate &&
         dayStr <= b.endDate,
     );
@@ -228,6 +228,10 @@ export const Calendar: React.FC = () => {
         <div className="flex items-center gap-1.5">
           <span className="w-3.5 h-3.5 rounded bg-emerald-500 shadow-xs" />
           <span>Sewa Aktif</span>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3.5 h-3.5 rounded bg-purple-600 shadow-xs" />
+          <span>Pengembalian Diajukan</span>
         </div>
         <div className="flex items-center gap-1.5">
           <span className="w-3.5 h-3.5 rounded bg-blue-500 shadow-xs" />
@@ -346,8 +350,11 @@ export const Calendar: React.FC = () => {
                     // Booking Block
                     const isPending = st.status === 'pending';
                     const isActive = st.status === 'active';
+                    const isReturnRequested = st.status === 'return_requested';
                     const bgColor = isPending
                       ? 'bg-amber-500 text-white hover:bg-amber-600'
+                      : isReturnRequested
+                      ? 'bg-purple-600 text-white hover:bg-purple-700'
                       : isActive
                       ? 'bg-emerald-600 text-white hover:bg-emerald-700'
                       : 'bg-blue-600 text-white hover:bg-blue-700';

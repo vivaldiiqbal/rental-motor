@@ -213,7 +213,7 @@ const bookingRepo = {
       const res = await db.query(
         `${BASE_BOOKING_SELECT}
          WHERE b.motorcycle_id = $1
-           AND b.status IN ('pending', 'confirmed', 'active')
+           AND b.status IN ('pending', 'confirmed', 'active', 'return_requested')
            AND b.end_date >= COALESCE($2::date, CURRENT_DATE)
          ORDER BY b.start_date ASC, b.id ASC`,
         [Number(motorId), fromDate],
@@ -234,6 +234,10 @@ const bookingRepo = {
         params.push(Number(filter.motorId));
         conditions.push(`motorcycle_id = $${params.length}`);
       }
+      if (filter.userId) {
+        params.push(Number(filter.userId));
+        conditions.push(`user_id = $${params.length}`);
+      }
 
       const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
       const res = await db.query(
@@ -249,6 +253,7 @@ const bookingRepo = {
         pending: 0,
         confirmed: 0,
         active: 0,
+        return_requested: 0,
         completed: 0,
         cancelled: 0,
         expired: 0,
@@ -277,7 +282,7 @@ const bookingRepo = {
       const res = await db.query(
         `${BASE_BOOKING_SELECT}
          WHERE b.motorcycle_id = $1
-           AND b.status IN ('pending', 'confirmed', 'active')
+           AND b.status IN ('pending', 'confirmed', 'active', 'return_requested')
            AND daterange(b.start_date, b.end_date, '[)') && daterange($2::date, $3::date, '[)')
            AND ($4::int IS NULL OR b.id <> $4::int)
          ORDER BY b.start_date ASC`,
@@ -302,7 +307,7 @@ const bookingRepo = {
            SELECT generate_series(start_date, end_date - 1, interval '1 day')::date AS d
            FROM bookings
            WHERE motorcycle_id = $1
-             AND status IN ('pending', 'confirmed', 'active')
+             AND status IN ('pending', 'confirmed', 'active', 'return_requested')
              AND daterange(start_date, end_date, '[)') && daterange(COALESCE($2::date, CURRENT_DATE), COALESCE($3::date, CURRENT_DATE + 180), '[)')
            UNION ALL
            SELECT generate_series(start_date, end_date - 1, interval '1 day')::date AS d
@@ -329,7 +334,7 @@ const bookingRepo = {
       const res = await db.query(
         `SELECT start_date, end_date FROM bookings
          WHERE motorcycle_id = $1
-           AND status IN ('pending', 'confirmed', 'active')
+           AND status IN ('pending', 'confirmed', 'active', 'return_requested')
            AND ($2::date IS NULL OR end_date > $2::date)
            AND ($3::date IS NULL OR start_date < $3::date)
          UNION ALL
@@ -593,10 +598,18 @@ const bookingRepo = {
         paymentMethod: 'payment_method',
         cancelledBy: 'cancelled_by',
         version: 'version',
+        handoverAt: 'handover_at',
+        handedAt: 'handover_at',
+        returnRequestedAt: 'return_requested_at',
+        returnMethod: 'return_method',
+        returnCustomerNotes: 'return_customer_notes',
+        returnPhotoUrl: 'return_photo_url',
       };
 
+      const assignedCols = new Set();
       for (const [key, col] of Object.entries(fieldMap)) {
-        if (patch[key] !== undefined) {
+        if (patch[key] !== undefined && !assignedCols.has(col)) {
+          assignedCols.add(col);
           params.push(patch[key]);
           setClauses.push(`${col} = $${params.length}`);
         }

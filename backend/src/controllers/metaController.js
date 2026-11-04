@@ -3,6 +3,13 @@ const motorService = require('../services/motorService');
 const { successResponse } = require('../utils/response');
 
 const metaController = {
+  async getAddons(req, res) {
+    const addons = await motorService.getPublicAddons();
+    return successResponse(res, {
+      data: addons,
+    });
+  },
+
   async getRentalOptions(req, res) {
     const options = await motorService.getRentalOptions();
     return successResponse(res, {

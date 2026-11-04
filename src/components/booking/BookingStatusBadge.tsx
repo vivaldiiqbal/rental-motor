@@ -5,8 +5,10 @@ const map: Record<BookingStatus, { label: string; tone: 'success' | 'neutral' | 
   pending: { label: 'Menunggu pembayaran', tone: 'warning' },
   confirmed: { label: 'Terkonfirmasi', tone: 'success' },
   active: { label: 'Sedang berjalan', tone: 'primary' },
+  return_requested: { label: 'Menunggu Verifikasi Pengembalian', tone: 'warning' },
   completed: { label: 'Selesai', tone: 'neutral' },
   cancelled: { label: 'Dibatalkan', tone: 'danger' },
+  expired: { label: 'Kedaluwarsa', tone: 'danger' },
 };
 
 export function BookingStatusBadge({ status }: { status: BookingStatus }) {

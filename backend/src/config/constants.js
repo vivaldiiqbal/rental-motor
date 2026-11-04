@@ -16,6 +16,7 @@ const BOOKING_STATUS = {
   PENDING: 'pending',
   CONFIRMED: 'confirmed',
   ACTIVE: 'active',
+  RETURN_REQUESTED: 'return_requested',
   COMPLETED: 'completed',
   CANCELLED: 'cancelled',
   EXPIRED: 'expired',
@@ -26,6 +27,7 @@ const BLOCKING_BOOKING_STATUSES = [
   BOOKING_STATUS.PENDING,
   BOOKING_STATUS.CONFIRMED,
   BOOKING_STATUS.ACTIVE,
+  BOOKING_STATUS.RETURN_REQUESTED,
 ];
 
 const PAYMENT_METHODS = ['bank_transfer', 'ewallet', 'qris', 'transfer', 'cash'];

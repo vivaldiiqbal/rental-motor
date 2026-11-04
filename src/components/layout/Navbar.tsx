@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { Link, NavLink, useNavigate } from 'react-router-dom';
-import { Bike, CalendarCheck, ChevronDown, Heart, LogOut, Menu, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { Bike, CalendarCheck, ChevronDown, Heart, LogOut, Menu, ShieldCheck, ShoppingCart, User as UserIcon } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useFavorites } from '../../context/FavoritesContext';
+import { useBookingCart } from '../../context/BookingCartContext';
 import { Button } from '../ui/Button';
 import { MobileMenu } from './MobileMenu';
 import { navLinks } from './navLinks';
@@ -15,6 +16,7 @@ export function Navbar() {
   const { user, logout } = useAuth();
   const { ids } = useFavorites();
   const { settings } = useSiteSettings();
+  const cart = useBookingCart();
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const [userOpen, setUserOpen] = useState(false);
@@ -69,6 +71,34 @@ export function Navbar() {
               </span>
             )}
           </Link>
+
+          {/* Keranjang Sewa Terpadu */}
+          <button
+            type="button"
+            onClick={() => {
+              if (cart.motor) {
+                navigate(cart.checkoutUrl || `/booking/${cart.motor.slug}`);
+              } else {
+                navigate('/motors');
+              }
+            }}
+            aria-label={`Keranjang Sewa${cart.totalItemsCount ? `, ${cart.totalItemsCount} item` : ''}`}
+            title={
+              cart.motor
+                ? `Keranjang: ${cart.motor.name}${cart.addonsCount > 0 ? ` + ${cart.addonsCount} add-on` : ''}`
+                : cart.addonsCount > 0
+                ? `${cart.addonsCount} perlengkapan di keranjang. Pilih motor untuk checkout.`
+                : 'Keranjang Sewa'
+            }
+            className="relative flex h-11 w-11 items-center justify-center rounded-xl hover:bg-primary-800 transition-colors"
+          >
+            <ShoppingCart aria-hidden className="h-5 w-5" />
+            {cart.totalItemsCount > 0 && (
+              <span className="absolute right-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-500 px-1 text-[10px] font-bold text-white shadow-xs">
+                {cart.totalItemsCount}
+              </span>
+            )}
+          </button>
 
           {user ? (
             <div className="relative hidden lg:block">

@@ -5,6 +5,8 @@ const healthController = require('../controllers/healthController');
 const authRoutes = require('./auth.routes');
 const motorRoutes = require('./motor.routes');
 const metaRoutes = require('./meta.routes');
+const metaController = require('../controllers/metaController');
+const asyncHandler = require('../middleware/asyncHandler');
 const bookingRoutes = require('./booking.routes');
 const paymentRoutes = require('./payment.routes');
 const reviewRoutes = require('./review.routes');
@@ -23,8 +25,9 @@ router.use('/auth', authRoutes);
 router.use('/motorcycles', motorRoutes);
 router.use('/motors', motorRoutes);
 
-// 4. Meta Rental Options
+// 4. Meta Rental Options & Public Add-ons (/addons)
 router.use('/meta', metaRoutes);
+router.get('/addons', asyncHandler(metaController.getAddons));
 
 // 5. Booking Modul
 router.use('/bookings', bookingRoutes);

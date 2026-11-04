@@ -32,6 +32,10 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
       colorClasses = 'bg-blue-50 text-blue-700 border-blue-200';
       label = 'Sedang Berjalan';
       break;
+    case 'return_requested':
+      colorClasses = 'bg-purple-50 text-purple-700 border-purple-200 font-semibold';
+      label = 'Pengembalian Diajukan';
+      break;
     case 'completed':
       colorClasses = 'bg-slate-100 text-slate-700 border-slate-200';
       label = 'Selesai';

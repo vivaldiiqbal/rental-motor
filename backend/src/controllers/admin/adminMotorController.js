@@ -1,5 +1,6 @@
 const adminMotorService = require('../../services/admin/adminMotorService');
 const { successResponse } = require('../../utils/response');
+const AppError = require('../../utils/AppError');
 
 const adminMotorController = {
   async getFilterOptions(req, res) {
@@ -91,6 +92,29 @@ const adminMotorController = {
     return successResponse(res, {
       data: motor,
       message: 'Foto armada motor berhasil dihapus.',
+    });
+  },
+
+  async uploadSingleImage(req, res) {
+    if (!req.uploadedMotorImages || req.uploadedMotorImages.length === 0) {
+      throw new AppError('Tidak ada file gambar yang diunggah.', 400, 'NO_FILE_UPLOADED');
+    }
+    const uploaded = req.uploadedMotorImages[0];
+    return successResponse(res, {
+      data: {
+        url: uploaded.url,
+        filename: uploaded.filename,
+      },
+      message: 'Foto berhasil diunggah.',
+    });
+  },
+
+  async deleteMotorcycle(req, res) {
+    const reqContext = { user: req.user, ip: req.ip, headers: req.headers };
+    const result = await adminMotorService.deleteMotorcycle(req.params.id, reqContext);
+    return successResponse(res, {
+      data: result,
+      message: result.message || 'Armada motor berhasil dihapus.',
     });
   },
 };

@@ -1,11 +1,26 @@
 const { z } = require('zod');
 const { isValidIndonesianPhone, normalizeIndonesianPhone } = require('../utils/phone');
 
+const addonItemSchema = z.union([
+  z.string(),
+  z.number(),
+  z.object({
+    id: z.union([z.string(), z.number()]).optional(),
+    addon_id: z.union([z.string(), z.number()]).optional(),
+    code: z.string().optional(),
+    name: z.string().optional(),
+    price_per_day: z.number().optional(),
+    pricePerDay: z.number().optional(),
+    qty: z.number().int().min(1).max(20).optional(),
+    quantity: z.number().int().min(1).max(20).optional(),
+  }),
+]);
+
 const quoteSchema = z.object({
   motorId: z.union([z.number(), z.string()], { required_error: 'motorId wajib diisi.' }),
   start: z.string({ required_error: 'Tanggal mulai (start) wajib diisi.' }).regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD.'),
   end: z.string({ required_error: 'Tanggal selesai (end) wajib diisi.' }).regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal harus YYYY-MM-DD.'),
-  addons: z.array(z.string()).optional().default([]),
+  addons: z.array(addonItemSchema).optional().default([]),
   delivery: z
     .object({
       pickup: z.boolean().optional(),
@@ -26,7 +41,7 @@ const createBookingSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/, 'Format tanggal kembali harus YYYY-MM-DD.'),
   pickupTime: z.string().optional().default('09:00'),
   pickupLocation: z.string().optional(),
-  addons: z.array(z.string()).optional().default([]),
+  addons: z.array(addonItemSchema).optional().default([]),
   delivery: z
     .object({
       pickup: z.boolean().optional(),

@@ -14,6 +14,8 @@ import { Pagination } from '../components/ui/Pagination';
 import { MotorGridSkeleton } from '../components/ui/Skeleton';
 import { EmptyState } from '../components/ui/EmptyState';
 import { ErrorState } from '../components/ui/ErrorState';
+import { AddonSelector } from '../components/booking/AddonSelector';
+import { countDays } from '../lib/format';
 import { useAsync } from '../hooks/useAsync';
 import { useDebounce } from '../hooks/useDebounce';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
@@ -237,6 +239,15 @@ export default function Motors() {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Seksi Sewa Lainnya / Perlengkapan Tambahan */}
+          <div className="mt-14 border-t border-neutral-200 pt-10">
+            <AddonSelector
+              title="Perlengkapan & Layanan Tambahan (Sewa Lainnya)"
+              description="Tambahkan perlengkapan tambahan ke keranjang sewa Anda. Item yang Anda pilih otomatis terhubung ke pesanan motor Anda."
+              rentalDays={hasDates ? countDays(query.startDate!, query.endDate!) : 1}
+            />
           </div>
         </section>
       </div>

@@ -1,4 +1,4 @@
-import type { Booking, Review, EmergencyContact } from '../types';
+import type { Booking, Review, EmergencyContact, BookingAddonLine } from '../types';
 import type { AdminRole } from './permissions';
 
 export type DocumentStatus = 'pending' | 'verified' | 'rejected' | 'not_uploaded';
@@ -75,7 +75,7 @@ export interface AdminBooking extends Booking {
   pickupAddress?: string;
   returnAddress?: string;
   pickupTime?: string;
-  addonsList?: { id: string; name: string; price: number }[];
+  addonsList?: BookingAddonLine[] | { id: string; name: string; price: number; [k: string]: any }[];
   isOverdue?: boolean;
 
   // MVP Handover & Return Details

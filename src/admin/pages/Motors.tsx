@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import {
   Plus,
   Edit2,
+  Trash2,
   Star,
   PowerOff,
   AlertTriangle,
@@ -18,6 +19,7 @@ import { DataTable, type Column } from '../components/DataTable';
 import { FilterBar } from '../components/FilterBar';
 import { StatusBadge } from '../components/StatusBadge';
 import { CsvButton } from '../components/CsvButton';
+import { ConfirmDialog } from '../components/ConfirmDialog';
 import { formatPrice } from '../../utils/formatPrice';
 import { usePermission } from '../hooks/usePermission';
 import { MotorRentalHistoryModal } from '../components/MotorRentalHistoryModal';
@@ -59,6 +61,13 @@ export const Motors: React.FC = () => {
     { label: 'Servis', value: 'maintenance' },
     { label: 'Nonaktif', value: 'inactive' },
   ]);
+
+  // Delete Motor Confirm Dialog
+  const [deleteDialog, setDeleteDialog] = useState<{
+    isOpen: boolean;
+    motor: Motor | null;
+  }>({ isOpen: false, motor: null });
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // Quick Status Modal
   const [statusModalOpen, setStatusModalOpen] = useState(false);
@@ -203,6 +212,24 @@ export const Motors: React.FC = () => {
       toast.error(err.message || 'Status tidak dapat diubah karena ada bentrok booking.');
     } finally {
       setStatusLoading(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteDialog.motor) return;
+    setDeleteLoading(true);
+    try {
+      await adminApi.deleteMotor(deleteDialog.motor.id);
+      toast.success(`Armada motor ${deleteDialog.motor.name} berhasil dihapus.`);
+      setDeleteDialog({ isOpen: false, motor: null });
+      fetchMotors(false);
+    } catch (err: unknown) {
+      const errorMsg = (err as { response?: { data?: { message?: string } }; message?: string })?.response?.data?.message ||
+        (err as { message?: string })?.message ||
+        'Gagal menghapus unit motor.';
+      toast.error(errorMsg);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -396,6 +423,17 @@ export const Motors: React.FC = () => {
               className="p-1.5 bg-primary-50 hover:bg-primary-100 text-primary-900 rounded-lg text-xs font-semibold"
             >
               <Edit2 className="w-4 h-4" />
+            </button>
+          )}
+
+          {can('motors:delete') && (
+            <button
+              type="button"
+              onClick={() => setDeleteDialog({ isOpen: true, motor: item })}
+              title="Hapus Unit Motor"
+              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg text-xs font-semibold"
+            >
+              <Trash2 className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -635,6 +673,18 @@ export const Motors: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Delete Motor Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={deleteDialog.isOpen}
+        title="Hapus Unit Motor"
+        message={`Apakah Anda yakin ingin menghapus armada motor "${deleteDialog.motor?.name}" (${deleteDialog.motor?.plate || deleteDialog.motor?.plateNumber || ''})? Tindakan ini akan menghapus data unit dari sistem jika tidak ada transaksi aktif.`}
+        variant="danger"
+        confirmText="Hapus Armada"
+        loading={deleteLoading}
+        onConfirm={handleDeleteConfirm}
+        onClose={() => setDeleteDialog({ isOpen: false, motor: null })}
+      />
 
       {/* Rental History Modal */}
       <MotorRentalHistoryModal

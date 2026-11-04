@@ -29,7 +29,8 @@ function MotorCardBase({ motor, startDate, endDate, hideCompare }: Props) {
   const comparing = compare.has(motor.id);
   const hasDates = !!startDate && !!endDate;
   const days = hasDates ? countDays(startDate, endDate) : 0;
-  const available = motor.available ?? motor.status === 'available';
+  const isRented = motor.status === 'rented';
+  const available = !isRented && (motor.available ?? motor.status === 'available');
   const detailUrl = `/motors/${motor.slug}${dateQuery(startDate, endDate)}`;
 
   const onFav = () => {
@@ -50,6 +51,10 @@ function MotorCardBase({ motor, startDate, endDate, hideCompare }: Props) {
           {available ? (
             <Badge tone="success" icon={<CheckCircle2 aria-hidden className="h-3.5 w-3.5" />}>
               Tersedia
+            </Badge>
+          ) : isRented ? (
+            <Badge tone="warning" icon={<Ban aria-hidden className="h-3.5 w-3.5" />}>
+              Sedang Disewa / Tidak Tersedia
             </Badge>
           ) : (
             <Badge tone="neutral" icon={<Ban aria-hidden className="h-3.5 w-3.5" />}>

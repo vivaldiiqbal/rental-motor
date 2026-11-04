@@ -36,7 +36,7 @@ function bookingCapabilities(booking, payment = null, actor = {}, now = clock.no
   const status = booking.status;
 
   const paymentStatus = payment?.status || (booking.paidAt ? 'paid' : (isCash ? 'unpaid' : 'pending'));
-  const isPaid = paymentStatus === 'paid' || Boolean(booking.paidAt) || ['confirmed', 'active', 'completed'].includes(status);
+  const isPaid = paymentStatus === 'paid' || Boolean(booking.paidAt) || ['confirmed', 'active', 'return_requested', 'completed'].includes(status);
   const hasProofUploaded = Boolean(payment?.proofUploadedAt || payment?.proofPath);
   const isProofVerified = Boolean(payment?.proofVerifiedAt);
   const isProofPendingVerification = hasProofUploaded && !isProofVerified;
@@ -51,7 +51,7 @@ function bookingCapabilities(booking, payment = null, actor = {}, now = clock.no
     if (['cancelled', 'completed', 'expired'].includes(status)) {
       canCancel = false;
       cancelBlockedReason = `Pemesanan dengan status '${status}' tidak dapat dibatalkan.`;
-    } else if (status === 'active') {
+    } else if (status === 'active' || status === 'return_requested') {
       canCancel = false;
       cancelBlockedReason = 'Pemesanan yang sedang berjalan tidak dapat dibatalkan (lakukan proses pengembalian/return).';
     } else if (['pending', 'confirmed'].includes(status)) {
@@ -89,7 +89,7 @@ function bookingCapabilities(booking, payment = null, actor = {}, now = clock.no
     } else if (status === 'confirmed') {
       canCancel = false;
       cancelBlockedReason = 'Pemesanan sudah dibayar/dikonfirmasi. Pelanggan tidak dapat membatalkan setelah pembayaran. Hubungi admin untuk bantuan.';
-    } else if (status === 'active') {
+    } else if (status === 'active' || status === 'return_requested') {
       canCancel = false;
       cancelBlockedReason = 'Pemesanan sedang berjalan dan tidak dapat dibatalkan.';
     } else if (status === 'completed') {
@@ -114,10 +114,13 @@ function bookingCapabilities(booking, payment = null, actor = {}, now = clock.no
   const canUploadProof = !isCash && status === 'pending' && rawMethod === 'bank_transfer' && !isPaid && !isProofPendingVerification;
 
   // Capability Serah Terima (Admin / Staff)
-  const canHandover = isStaffOrAdmin && ((isCash && status === 'pending') || (!isCash && status === 'confirmed'));
+  const canHandover = isStaffOrAdmin && ((isCash && (status === 'pending' || status === 'confirmed')) || (!isCash && status === 'confirmed'));
 
-  // Capability Pengembalian (Admin / Staff)
-  const canReturn = isStaffOrAdmin && status === 'active';
+  // Capability Pengajuan Pengembalian oleh Pelanggan
+  const canRequestReturn = !isStaffOrAdmin && status === 'active';
+
+  // Capability Verifikasi Pengembalian (Admin / Staff)
+  const canReturn = isStaffOrAdmin && (status === 'active' || status === 'return_requested');
 
   return {
     canCancel,
@@ -126,6 +129,7 @@ function bookingCapabilities(booking, payment = null, actor = {}, now = clock.no
     canUploadProof,
     canRequestHelp: true,
     canHandover,
+    canRequestReturn,
     canReturn,
     paymentMethod: rawMethod,
     paymentStatus,

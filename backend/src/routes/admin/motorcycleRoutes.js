@@ -14,8 +14,15 @@ router.get('/:id', requireRole('admin', 'staff'), asyncHandler(adminMotorControl
 // Admin ONLY: Mutasi Armada Motor
 router.use(requireRole('admin'));
 
+router.post(
+  '/upload-image',
+  uploadLimiter,
+  uploadMotorImagesMiddleware(),
+  asyncHandler(adminMotorController.uploadSingleImage)
+);
 router.post('/', asyncHandler(adminMotorController.createMotorcycle));
 router.put('/:id', asyncHandler(adminMotorController.updateMotorcycle));
+router.delete('/:id', asyncHandler(adminMotorController.deleteMotorcycle));
 router.patch('/:id/status', asyncHandler(adminMotorController.updateStatus));
 router.post(
   '/:id/images',

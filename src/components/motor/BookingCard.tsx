@@ -33,11 +33,12 @@ export function BookingCard({ motor, dates, onDatesChange, blocked, available }:
   const hasDates = !!dates.startDate && !!dates.endDate;
   const days = hasDates ? countDays(dates.startDate, dates.endDate) : 0;
   const underMaintenance = motor.status === 'maintenance';
+  const isRented = motor.status === 'rented';
   const tooLong = days > maxDays;
-  const canBook = hasDates && available === true && !underMaintenance && !tooLong;
+  const canBook = hasDates && available === true && !underMaintenance && !isRented && !tooLong;
 
   useEffect(() => {
-    if (!hasDates || tooLong || available === false) {
+    if (!hasDates || tooLong || available === false || isRented) {
       setQuote(null);
       return;
     }
@@ -76,6 +77,11 @@ export function BookingCard({ motor, dates, onDatesChange, blocked, available }:
         <div role="status" className="flex items-start gap-2 rounded-xl bg-warning p-3 text-sm text-warning-text">
           <AlertCircle aria-hidden className="mt-0.5 h-4 w-4 shrink-0" />
           Motor ini sedang dalam perawatan dan belum dapat disewa.
+        </div>
+      ) : isRented ? (
+        <div role="status" className="flex items-start gap-2 rounded-xl bg-amber-50 border border-amber-200 p-3 text-sm text-amber-900">
+          <AlertCircle aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+          Motor ini sedang disewa pelanggan lain dan saat ini tidak tersedia untuk dipesan.
         </div>
       ) : (
         <>

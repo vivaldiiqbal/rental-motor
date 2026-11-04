@@ -2,6 +2,7 @@ const { addonRepo, transaction } = require('../../repositories');
 const { recordAudit } = require('../../middleware/audit');
 const AppError = require('../../utils/AppError');
 const { ERROR_CODES } = require('../../config/constants');
+const pricingService = require('../pricingService');
 
 const addonService = {
   async getAddons(query = {}) {
@@ -49,6 +50,7 @@ const addonService = {
         created
       );
 
+      pricingService.invalidateCache();
       return created;
     });
   },
@@ -82,6 +84,7 @@ const addonService = {
         updated
       );
 
+      pricingService.invalidateCache();
       return updated;
     });
   },
@@ -106,6 +109,7 @@ const addonService = {
         { isActive: targetActive }
       );
 
+      pricingService.invalidateCache();
       return updated;
     });
   },
@@ -137,6 +141,7 @@ const addonService = {
         null
       );
 
+      pricingService.invalidateCache();
       return { success: true };
     });
   },

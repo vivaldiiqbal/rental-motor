@@ -28,6 +28,9 @@ router.get('/:id/ics', protect, asyncHandler(bookingController.getBookingIcs));
 router.put('/:id/cancel', protect, validate(cancelBookingSchema), asyncHandler(bookingController.cancelBooking));
 router.post('/:id/cancel', protect, validate(cancelBookingSchema), asyncHandler(bookingController.cancelBooking));
 
+// 5b. Ajukan pengembalian motor oleh pelanggan (active -> return_requested)
+router.post('/:id/request-return', protect, asyncHandler(bookingController.requestReturn));
+
 // 6. Detail pemesanan (hanya pemilik, selain pemilik -> 404)
 router.get('/:id', protect, asyncHandler(bookingController.getBookingDetail));
 

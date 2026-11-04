@@ -31,6 +31,29 @@ function findNextAvailableSlot(blockedRanges, duration, searchStartDate, maxDays
 }
 
 class AvailabilityService {
+  async hasActiveRentalNow(motorId) {
+    if (process.env.USE_DB === 'postgres') {
+      const { pool } = require('../../db/pool');
+      const res = await pool.query(
+        `SELECT 1 FROM bookings
+         WHERE motorcycle_id = $1
+           AND status IN ('confirmed', 'active')
+           AND start_date <= (now() AT TIME ZONE 'Asia/Jakarta')::date
+           AND end_date > (now() AT TIME ZONE 'Asia/Jakarta')::date
+         LIMIT 1`,
+        [Number(motorId)],
+      );
+      return res.rows.length > 0;
+    }
+    const today = toISODate(new Date());
+    const bookings = store.getCollection ? store.getCollection('bookings') : (store.data?.bookings || []);
+    return bookings.some(
+      (b) => Number(b.motorId || b.motorcycleId) === Number(motorId) &&
+        ['confirmed', 'active'].includes(b.status) &&
+        b.startDate <= today && b.endDate > today,
+    );
+  }
+
   /**
    * Cek apakah motor bebas jadwal booking dan blok servis pada rentang tanggal yang diminta.
    * Menggunakan predikat daterange && daterange(...) agar indeks GiST terpakai.

@@ -61,6 +61,20 @@ const clock = require('../utils/clock');
               `, [relRes.rows[0].promo_id]);
             }
 
+            // Kembalikan status motor ke 'active' (tersedia) jika tidak ada booking aktif lain
+            if (row.motorcycle_id) {
+              const activeBookingRes = await client.query(
+                `SELECT 1 FROM bookings WHERE motorcycle_id = $1 AND status IN ('pending', 'confirmed', 'active') AND id <> $2 LIMIT 1`,
+                [row.motorcycle_id, row.id],
+              );
+              if (activeBookingRes.rows.length === 0) {
+                await client.query(
+                  "UPDATE motorcycles SET status = 'active', updated_at = now() WHERE id = $1 AND status = 'rented'",
+                  [row.motorcycle_id],
+                );
+              }
+            }
+
             // Realtime Outbox Events: Booking Expired
             await eventBroadcaster.publish(client, {
               type: 'booking.updated',

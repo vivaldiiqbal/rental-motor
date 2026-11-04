@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Calendar } from 'lucide-react';
 import { Seo } from '../components/Seo';
 import { PageContainer } from '../components/layout/PageContainer';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
@@ -27,8 +27,10 @@ import { ErrorState } from '../components/ui/ErrorState';
 import { useAsync } from '../hooks/useAsync';
 import { useAuth } from '../context/AuthContext';
 import { useSiteSettings } from '../context/SiteSettingsContext';
+import { useBookingCart } from '../context/BookingCartContext';
+import { addDays } from 'date-fns';
 import { ApiError, createBooking, getBlockedRanges, getMotorBySlug, getPage, getBookingQuote } from '../services/api';
-import { countDays } from '../lib/format';
+import { countDays, formatDate, toISODate } from '../lib/format';
 import { readStorage, removeStorage, writeStorage } from '../lib/storage';
 
 export default function Booking() {
@@ -37,11 +39,17 @@ export default function Booking() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { settings } = useSiteSettings();
+  const cart = useBookingCart();
+
+  const urlStart = sp.get('start') ?? undefined;
+  const urlEnd = sp.get('end') ?? undefined;
 
   const draftKey = `rk_booking_draft_${slug}`;
   const initialSaved = readStorage<{ step?: number; draft?: Partial<BookingDraft> } | null>(draftKey, null);
 
-  const [step, setStep] = useState(() => (typeof initialSaved?.step === 'number' ? Math.min(2, Math.max(0, initialSaved.step)) : 0));
+  const [step, setStep] = useState(() =>
+    typeof initialSaved?.step === 'number' ? Math.min(BOOKING_STEPS.length - 1, Math.max(0, initialSaved.step)) : 0,
+  );
   const [errors, setErrors] = useState<DraftErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
@@ -49,9 +57,30 @@ export default function Booking() {
   const [suggestion, setSuggestion] = useState<{ start: string; end: string } | null>(null);
   const [termsVersion, setTermsVersion] = useState<number | null>(null);
   const [draft, setDraft] = useState<BookingDraft>(() => {
-    const base = emptyDraft(user, sp.get('start') ?? undefined, sp.get('end') ?? undefined);
-    return initialSaved?.draft ? { ...base, ...initialSaved.draft } : base;
+    const defaultStart = urlStart || initialSaved?.draft?.startDate || cart.startDate || toISODate(new Date());
+    const defaultEnd = urlEnd || initialSaved?.draft?.endDate || cart.endDate || toISODate(addDays(new Date(), 2));
+    const base = emptyDraft(user, defaultStart, defaultEnd);
+    const merged = initialSaved?.draft ? { ...base, ...initialSaved.draft } : base;
+    // Prioritaskan tanggal dari URL query (?start=...&end=...) agar selalu sinkron dengan halaman Detail Motor
+    if (urlStart) merged.startDate = urlStart;
+    if (urlEnd) merged.endDate = urlEnd;
+    // Sinkronkan add-ons dari cart global jika draft lokal belum ada
+    if ((!merged.addons || merged.addons.length === 0) && cart.addons.length > 0) {
+      merged.addons = cart.addons;
+    }
+    return merged;
   });
+
+  // Pastikan perubahan query URL ?start=...&end=... langsung memperbarui state draft
+  useEffect(() => {
+    if (urlStart || urlEnd) {
+      setDraft((prev) => ({
+        ...prev,
+        startDate: urlStart || prev.startDate,
+        endDate: urlEnd || prev.endDate,
+      }));
+    }
+  }, [urlStart, urlEnd]);
 
   const [quote, setQuote] = useState<BookingQuote | null>(null);
   const [quoteLoading, setQuoteLoading] = useState(false);
@@ -75,7 +104,14 @@ export default function Booking() {
   const motor = motorQ.data;
   const blockedQ = useAsync(() => (motor ? getBlockedRanges(motor.id) : Promise.resolve([])), [motor?.id]);
 
-  // Kalkulasi harga dinamis real-time (aturan weekend/seasonal, diskon durasi sewa, promo, ongkir)
+  // Sinkronkan motor dan durasi sewa ke keranjang global
+  useEffect(() => {
+    if (motor) {
+      cart.setMotor(motor, draft.startDate, draft.endDate);
+    }
+  }, [motor, draft.startDate, draft.endDate]);
+
+  // Kalkulasi harga dinamis real-time (aturan weekend/seasonal, diskon durasi sewa, add-ons gabungan, promo, ongkir)
   useEffect(() => {
     if (!motor || !draft.startDate || !draft.endDate) {
       setQuote(null);
@@ -99,6 +135,13 @@ export default function Booking() {
         dropoff: draft.pickup === 'delivery',
       },
       promoCode: draft.promoCode ? draft.promoCode.trim() : undefined,
+      addons: (draft.addons || []).map((a) => ({
+        addon_id: a.addon_id,
+        code: a.code,
+        name: a.name,
+        quantity: a.quantity,
+        price_per_day: a.price_per_day,
+      })),
     })
       .then((data) => {
         if (active) setQuote(data);
@@ -113,10 +156,13 @@ export default function Booking() {
     return () => {
       active = false;
     };
-  }, [motor?.id, draft.startDate, draft.endDate, draft.pickup, draft.promoCode]);
+  }, [motor?.id, draft.startDate, draft.endDate, draft.pickup, draft.promoCode, JSON.stringify(draft.addons)]);
 
   const patch = (p: Partial<BookingDraft>) => {
     setDraft((d) => ({ ...d, ...p }));
+    if (p.pickup || p.address !== undefined) {
+      cart.setPickup(p.pickup || draft.pickup, p.address ?? draft.address);
+    }
     // Hapus pesan error kolom yang sedang diubah
     setErrors((e) => {
       const next = { ...e };
@@ -149,8 +195,12 @@ export default function Booking() {
     return (
       <PageContainer narrow>
         <EmptyState
-          title="Motor sedang tidak dapat disewa"
-          description="Motor ini sedang dalam perawatan. Silakan pilih motor lain."
+          title={motor.status === 'rented' ? 'Motor Sedang Disewa' : 'Motor sedang tidak dapat disewa'}
+          description={
+            motor.status === 'rented'
+              ? 'Unit motor ini sedang aktif disewa oleh pelanggan lain. Silakan pilih unit motor lain yang tersedia.'
+              : 'Motor ini sedang dalam perawatan. Silakan pilih motor lain.'
+          }
           action={<Button to="/motors">Pilih motor lain</Button>}
         />
       </PageContainer>
@@ -163,17 +213,18 @@ export default function Booking() {
     // Kunci submittingRef mencegah klik ganda secara cepat membuat 2 booking
     if (submittingRef.current) return;
 
-    let result = {};
+    let result: DraftErrors = {};
     if (step === 0) {
-      result = validateRental(draft, settings.rental);
-    } else if (step === 1) {
-      result = validateRenter(draft);
+      result = {
+        ...validateRental(draft, settings.rental),
+        ...validateRenter(draft),
+      };
     } else {
       result = validatePayment(draft);
     }
     setErrors(result);
     if (Object.keys(result).length > 0) {
-      toast.error('Periksa kembali isian Anda.');
+      toast.error('Periksa kembali kelengkapan data Anda.');
       return;
     }
     if (step < BOOKING_STEPS.length - 1) {
@@ -194,8 +245,16 @@ export default function Booking() {
         startDate: draft.startDate,
         endDate: draft.endDate,
         pickup: draft.pickup,
+        address: draft.address,
         payment: draft.payment,
         promoCode: draft.promoCode ? draft.promoCode.trim() : undefined,
+        addons: (draft.addons || []).map((a) => ({
+          addon_id: a.addon_id,
+          code: a.code,
+          name: a.name,
+          quantity: a.quantity,
+          price_per_day: a.price_per_day,
+        })),
         renter: {
           name: draft.name.trim(),
           phone: draft.phone.trim(),
@@ -206,6 +265,7 @@ export default function Booking() {
         acceptedTermsVersion: termsVersion,
       });
       removeStorage(draftKey);
+      cart.clearCart();
       toast.success('Pesanan berhasil dibuat!');
       navigate(`/bookings/${booking.code}`, { replace: true, state: { created: true } });
     } catch (e) {
@@ -265,18 +325,22 @@ export default function Booking() {
             </div>
           )}
           {step === 0 && (
-            <StepRentalDetail
-              motor={motor}
-              draft={draft}
-              errors={errors}
-              blocked={blockedQ.data ?? []}
-              quote={quote}
-              quoteLoading={quoteLoading}
-              onChange={patch}
-            />
+            <div className="space-y-8">
+              <StepRentalDetail
+                motor={motor}
+                draft={draft}
+                errors={errors}
+                blocked={blockedQ.data ?? []}
+                quote={quote}
+                quoteLoading={quoteLoading}
+                onChange={patch}
+              />
+              <div className="border-t border-neutral-200 pt-6">
+                <StepRenterData draft={draft} errors={errors} onChange={patch} />
+              </div>
+            </div>
           )}
-          {step === 1 && <StepRenterData draft={draft} errors={errors} onChange={patch} />}
-          {step === 2 && (
+          {step === 1 && (
             <StepPayment
               motor={motor}
               draft={draft}
@@ -293,12 +357,12 @@ export default function Booking() {
                 Kembali
               </Button>
             ) : (
-              <Button variant="ghost" to={`/motors/${motor.slug}`}>
+              <Button variant="ghost" to={`/motors/${motor.slug}?start=${draft.startDate ?? ''}&end=${draft.endDate ?? ''}`}>
                 Batal
               </Button>
             )}
             <Button onClick={next} loading={submitting} disabled={submitting}>
-              {step === BOOKING_STEPS.length - 1 ? 'Bayar Sekarang' : 'Lanjut'}
+              {step === BOOKING_STEPS.length - 1 ? 'Konfirmasi & Buat Pesanan' : 'Lanjut ke Pembayaran'}
               {step < BOOKING_STEPS.length - 1 && <ArrowRight aria-hidden className="h-4 w-4" />}
             </Button>
           </div>
@@ -313,6 +377,35 @@ export default function Booking() {
                 {motor.brand} · {motor.cc} cc · {motor.transmission}
               </p>
             </div>
+
+            {/* Ringkasan Jadwal Sewa Read-Only (Sinkron dari URL Query) */}
+            {draft.startDate && draft.endDate && days > 0 && (
+              <div className="rounded-xl border border-primary-100 bg-primary-50/50 p-3.5 text-xs space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-semibold text-primary-900 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5 text-primary-600" />
+                    Jadwal Sewa ({days} hari)
+                  </span>
+                  <Link
+                    to={`/motors/${motor.slug}?start=${draft.startDate}&end=${draft.endDate}`}
+                    className="font-semibold text-primary-600 hover:text-primary-700 underline"
+                  >
+                    Ubah Tanggal
+                  </Link>
+                </div>
+                <div className="grid grid-cols-2 gap-2 pt-1 border-t border-primary-100/80 text-neutral-700">
+                  <div>
+                    <span className="block text-[10px] uppercase tracking-wider text-neutral-500">Mulai Sewa</span>
+                    <span className="font-semibold text-ink">{formatDate(draft.startDate)}</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10px] uppercase tracking-wider text-neutral-500">Selesai Sewa</span>
+                    <span className="font-semibold text-ink">{formatDate(draft.endDate)}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {days > 0 ? (
               <PriceSummary
                 pricePerDay={motor.pricePerDay}
@@ -322,7 +415,7 @@ export default function Booking() {
                 loading={quoteLoading}
               />
             ) : (
-              <p className="text-sm text-neutral-500">Pilih tanggal untuk melihat rincian harga.</p>
+              <p className="text-sm text-neutral-500">Pilih tanggal pada halaman detail motor untuk melihat rincian harga.</p>
             )}
 
             {/* Pemberitahuan Pelacakan GPS Armada (Transparansi Privasi) */}

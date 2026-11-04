@@ -18,7 +18,20 @@ const returnService = {
     }
 
     const pickupTime = booking.pickupTime || '09:00';
-    const scheduled = new Date(`${booking.endDate}T${pickupTime}:00+07:00`);
+    const handedAt =
+      booking.handoverAt ||
+      booking.handedAt ||
+      booking.handover?.handedOverAt ||
+      booking.handover?.handedAt ||
+      null;
+    const totalDays = Math.max(
+      1,
+      Number(booking.totalDays || booking.days || 0) ||
+        Math.round((new Date(booking.endDate).getTime() - new Date(booking.startDate).getTime()) / (1000 * 60 * 60 * 24)),
+    );
+    const scheduled = handedAt
+      ? new Date(new Date(handedAt).getTime() + totalDays * 24 * 60 * 60 * 1000)
+      : new Date(`${booking.endDate}T${pickupTime}:00+07:00`);
     const returnedAt = new Date(returnedAtStr);
 
     const diffMs = returnedAt.getTime() - scheduled.getTime();
@@ -71,6 +84,9 @@ const returnService = {
   },
 
   async returnMotor(bookingId, payload = {}, actor = {}, reqInfo = {}) {
+    const actorUser = actor.user || actor || {};
+    const clientIp = reqInfo.ip || actor.ip || null;
+    const userAgent = reqInfo.userAgent || actor.headers?.['user-agent'] || null;
     return transaction(async (tx) => {
       let booking = await resolveBooking(bookingId, tx);
       if (!booking) {
@@ -91,9 +107,9 @@ const returnService = {
         await tx.client.query('SELECT id FROM motorcycles WHERE id = $1 FOR UPDATE', [Number(booking.motorId)]);
       }
 
-      if (booking.status !== 'active') {
+      if (booking.status !== 'active' && booking.status !== 'return_requested') {
         throw new AppError(
-          `Pengembalian motor hanya dapat dilakukan untuk booking yang berstatus "active". Status saat ini: "${booking.status}".`,
+          `Pengembalian motor hanya dapat dilakukan untuk booking yang berstatus "active" atau "return_requested". Status saat ini: "${booking.status}".`,
           'INVALID_STATUS_TRANSITION',
           400,
         );
@@ -141,7 +157,12 @@ const returnService = {
       const damageFee = Math.max(0, Math.floor(Number(payload.damageFee) || 0));
       const otherFee = Math.max(0, Math.floor(Number(payload.otherFee) || 0));
       const notes = payload.notes || 'Unit diterima kembali dan sewa selesai';
-      const fuelEnd = payload.fuelEnd || payload.finalFuel || 'penuh';
+      const rawFuel = String(payload.fuelEnd || payload.finalFuel || 'penuh').toLowerCase().trim();
+      const fuelEnd = rawFuel.includes('penuh') || rawFuel.includes('full')
+        ? 'penuh'
+        : rawFuel.includes('kosong') || rawFuel.includes('empty')
+        ? 'kosong'
+        : rawFuel;
 
       // Hitung ringkasan denda dan deposit
       const summary = await this.calculateReturnSummary(
@@ -152,6 +173,7 @@ const returnService = {
       );
 
       // 1. Simpan return record unik
+      const shouldConfirmDepositRefund = Boolean(payload.confirmDepositRefund) && summary.depositRefund > 0;
       const returnRecord = await tx.returnRepo.create({
         bookingId: booking.id,
         returnedAt: summary.actualReturn,
@@ -166,16 +188,33 @@ const returnService = {
         totalDeduction: summary.totalDeduction,
         depositRefund: summary.depositRefund,
         amountDue: summary.amountDue,
-        receivedBy: actor.name || 'Staf',
+        depositRefundedAt: shouldConfirmDepositRefund ? summary.actualReturn : null,
+        depositRefundedBy: shouldConfirmDepositRefund ? (actorUser.id || null) : null,
+        receivedBy: actorUser.name || 'Staf',
+        receivedById: actorUser.id,
       });
 
-      // 2. Update motor (odometer dan rental_count + 1)
+      // 2. Update motor (odometer, rental_count + 1, dan status ketersediaan)
       const motor = await tx.motorRepo.findById(booking.motorId);
       if (motor) {
+        let nextMotorStatus = motor.status === 'inactive' ? 'inactive' : 'available';
+        if (tx.driver === 'postgres' && tx.client) {
+          const remainingRes = await tx.client.query(
+            `SELECT 1 FROM bookings
+             WHERE motorcycle_id = $1
+               AND status IN ('confirmed', 'active')
+               AND id <> $2
+             LIMIT 1`,
+            [Number(booking.motorId), Number(booking.id)],
+          );
+          if (remainingRes.rows.length > 0) {
+            nextMotorStatus = 'rented';
+          }
+        }
         await tx.motorRepo.update(motor.id, {
           odometer: odometerEnd,
           rentalCount: (Number(motor.rentalCount) || 0) + 1,
-          status: 'available',
+          status: nextMotorStatus,
         });
       }
 
@@ -184,8 +223,8 @@ const returnService = {
       timeline.push({
         status: 'completed',
         title: 'Unit Motor Dikembalikan',
-        note: `Odo akhir: ${odometerEnd} km | BBM: ${fuelEnd} | Denda: Rp ${summary.lateFee.toLocaleString('id-ID')}${summary.damageFee > 0 ? ` | Kerusakan: Rp ${summary.damageFee.toLocaleString('id-ID')}` : ''}${summary.amountDue > 0 ? ` | Kurang Bayar: Rp ${summary.amountDue.toLocaleString('id-ID')}` : ` | Sisa Deposit: Rp ${summary.depositRefund.toLocaleString('id-ID')}`}`,
-        actor: actor.name || 'Staf',
+        note: `Odo akhir: ${odometerEnd} km | BBM: ${fuelEnd} | Denda: Rp ${summary.lateFee.toLocaleString('id-ID')}${summary.damageFee > 0 ? ` | Kerusakan: Rp ${summary.damageFee.toLocaleString('id-ID')}` : ''}${summary.amountDue > 0 ? ` | Kurang Bayar: Rp ${summary.amountDue.toLocaleString('id-ID')}` : ` | Deposit Kembali: Rp ${summary.depositRefund.toLocaleString('id-ID')}${shouldConfirmDepositRefund ? ' (Telah Dikembalikan)' : ''}`}`,
+        actor: actorUser.name || 'Staf',
         timestamp: summary.actualReturn,
       });
 
@@ -199,19 +238,22 @@ const returnService = {
         otherFee: summary.otherFee,
         depositRefund: summary.depositRefund,
         amountDue: summary.amountDue,
+        depositReturned: shouldConfirmDepositRefund,
+        depositRefundStatus: shouldConfirmDepositRefund ? 'refunded' : 'pending',
         returnInfo: returnRecord,
         timeline,
+        version: Number(booking.version || 1) + 1,
       });
 
       // 4. Catat log audit
       await recordAudit(tx.auditRepo, {
-        actorId: actor.id,
-        actorRole: actor.role,
-        actorName: actor.name,
+        actorId: actorUser.id,
+        actorRole: actorUser.role,
+        actorName: actorUser.name,
         action: 'RETURN_MOTOR',
         entityType: 'Booking',
         entityId: booking.id,
-        before: { status: 'active' },
+        before: { status: booking.status },
         after: {
           status: 'completed',
           endOdometer: odometerEnd,
@@ -219,10 +261,11 @@ const returnService = {
           damageFee: summary.damageFee,
           amountDue: summary.amountDue,
           depositRefund: summary.depositRefund,
+          depositReturned: shouldConfirmDepositRefund,
         },
         details: `Pengembalian motor booking #${booking.code} (Denda: Rp ${summary.lateFee}, Kurang Bayar: Rp ${summary.amountDue})`,
-        ip: reqInfo.ip,
-        userAgent: reqInfo.userAgent,
+        ip: clientIp,
+        userAgent,
       });
 
       // Realtime Outbox Events: Pengembalian Unit Motor

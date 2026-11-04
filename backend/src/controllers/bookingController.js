@@ -56,6 +56,15 @@ const bookingController = {
     });
   },
 
+  async requestReturn(req, res) {
+    const payload = req.body || {};
+    const booking = await bookingService.requestReturn(req.params.id, payload, req.user);
+    return successResponse(res, {
+      data: booking,
+      message: 'Pengajuan pengembalian motor berhasil dikirim ke Admin.',
+    });
+  },
+
   async getBookingIcs(req, res) {
     const { filename, content } = await bookingService.getBookingIcs(req.params.id, req.user);
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');

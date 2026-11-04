@@ -4,6 +4,7 @@ const metaController = require('../controllers/metaController');
 const asyncHandler = require('../middleware/asyncHandler');
 
 router.get('/rental-options', asyncHandler(metaController.getRentalOptions));
+router.get('/addons', asyncHandler(metaController.getAddons));
 router.get('/site', asyncHandler(metaController.getSiteMeta));
 
 module.exports = router;

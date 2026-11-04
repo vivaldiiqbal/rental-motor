@@ -59,7 +59,14 @@ export interface Review {
   date: string;
 }
 
-export type BookingStatus = 'pending' | 'confirmed' | 'active' | 'completed' | 'cancelled';
+export type BookingStatus =
+  | 'pending'
+  | 'confirmed'
+  | 'active'
+  | 'return_requested'
+  | 'completed'
+  | 'cancelled'
+  | 'expired';
 export type PaymentMethod = 'transfer' | 'ewallet' | 'cash';
 export type PickupMethod = 'store' | 'delivery';
 
@@ -71,10 +78,48 @@ export interface Renter {
   notes?: string;
 }
 
+export interface PublicAddon {
+  id: string | number;
+  addon_id?: string | number;
+  code: string;
+  name: string;
+  pricePerDay: number;
+  price_per_day?: number;
+  description: string;
+  isActive: boolean;
+}
+
+export interface CartAddonItem {
+  addon_id: string | number;
+  code: string;
+  name: string;
+  price_per_day: number;
+  quantity: number;
+  description?: string;
+}
+
+export interface BookingAddonLine {
+  id?: string | number;
+  addon_id?: string | number;
+  code?: string;
+  name: string;
+  pricePerDay?: number;
+  price_per_day?: number;
+  days?: number;
+  qty?: number;
+  quantity?: number;
+  total?: number;
+  amount?: number;
+  price?: number;
+  description?: string;
+}
+
 export interface Booking {
   id: string;
   code: string;
   motorId: string;
+  motorName?: string;
+  motorImage?: string;
   userId: string;
   startDate: string;
   endDate: string;
@@ -83,15 +128,42 @@ export interface Booking {
   subtotal: number;
   deposit: number;
   total: number;
+  addOnsTotal?: number;
+  addons?: BookingAddonLine[];
+  selectedAddOns?: BookingAddonLine[];
+  addonsList?: BookingAddonLine[];
   status: BookingStatus;
   createdAt: string;
   pickup: PickupMethod;
+  pickupLocation?: string;
   payment: PaymentMethod;
+  paymentMethod?: string;
+  paymentStatus?: string;
   renter: Renter;
   emergencyContact?: EmergencyContact | null;
   renterSnapshot?: any;
   termsVersion?: number | null;
   pricingSnapshot?: any;
+  handedAt?: string | null;
+  handoverAt?: string | null;
+  returnedAt?: string | null;
+  dueAt?: string | null;
+  handover?: any;
+  returnInfo?: any;
+  returnRequest?: {
+    requestedAt: string;
+    method: 'store' | 'pickup';
+    notes?: string;
+    customerNotes?: string;
+    photoUrl?: string | null;
+  } | null;
+  returnRequestedAt?: string | null;
+  returnMethod?: 'store' | 'pickup' | null;
+  returnCustomerNotes?: string | null;
+  returnPhotoUrl?: string | null;
+  depositReturned?: boolean;
+  lateFee?: number;
+  capabilities?: any;
 }
 
 export interface PageContent {
@@ -265,14 +337,8 @@ export interface BookingQuote {
     dropoff: number;
     total?: number;
   };
-  addOns?: Array<{
-    id: string;
-    name: string;
-    pricePerDay: number;
-    days: number;
-    qty: number;
-    total: number;
-  }>;
+  addOns?: BookingAddonLine[];
+  selectedAddOns?: BookingAddonLine[];
   addOnsTotal?: number;
   discount: number;
   promoDiscount: number;
@@ -290,11 +356,26 @@ export interface BookingQuote {
   } | null;
 }
 
+export type AddonInputItem =
+  | string
+  | number
+  | CartAddonItem
+  | {
+      id?: string | number;
+      addon_id?: string | number;
+      code?: string;
+      name?: string;
+      price_per_day?: number;
+      pricePerDay?: number;
+      qty?: number;
+      quantity?: number;
+    };
+
 export interface QuoteInput {
   motorId: number | string;
   start: string;
   end: string;
-  addons?: string[];
+  addons?: AddonInputItem[];
   delivery?: {
     pickup?: boolean;
     dropoff?: boolean;

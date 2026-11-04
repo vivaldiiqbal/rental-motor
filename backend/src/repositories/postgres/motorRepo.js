@@ -70,9 +70,15 @@ const motorRepo = {
       const params = [];
 
       if (filter.status) {
-        const dbStatus = filter.status === 'available' ? 'active' : filter.status;
-        params.push(dbStatus);
-        conditions.push(`m.status = $${params.length}`);
+        if (Array.isArray(filter.status)) {
+          const dbStatuses = filter.status.map((s) => (s === 'available' ? 'active' : s));
+          params.push(dbStatuses);
+          conditions.push(`m.status = ANY($${params.length}::varchar[])`);
+        } else {
+          const dbStatus = filter.status === 'available' ? 'active' : filter.status;
+          params.push(dbStatus);
+          conditions.push(`m.status = $${params.length}`);
+        }
       }
       if (filter.type) {
         params.push(filter.type);
@@ -133,9 +139,15 @@ const motorRepo = {
       const params = [];
 
       if (filter.status) {
-        const dbStatus = filter.status === 'available' ? 'active' : filter.status;
-        params.push(dbStatus);
-        conditions.push(`m.status = $${params.length}`);
+        if (Array.isArray(filter.status)) {
+          const dbStatuses = filter.status.map((s) => (s === 'available' ? 'active' : s));
+          params.push(dbStatuses);
+          conditions.push(`m.status = ANY($${params.length}::varchar[])`);
+        } else {
+          const dbStatus = filter.status === 'available' ? 'active' : filter.status;
+          params.push(dbStatus);
+          conditions.push(`m.status = $${params.length}`);
+        }
       }
 
       if (filter.q) {

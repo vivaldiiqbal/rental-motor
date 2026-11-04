@@ -1,11 +1,22 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { CheckCircle2, MessageCircle } from 'lucide-react';
+import {
+  CheckCircle2,
+  MessageCircle,
+  Banknote,
+  RotateCcw,
+  Clock,
+  ShieldCheck,
+  Store,
+  Truck,
+} from 'lucide-react';
 import { Seo } from '../components/Seo';
 import { PageContainer } from '../components/layout/PageContainer';
 import { Breadcrumb } from '../components/layout/Breadcrumb';
 import { BookingStatusBadge } from '../components/booking/BookingStatusBadge';
+import { RentalCountdownCard, formatDateTimeID } from '../components/booking/RentalCountdownCard';
+import { RequestReturnModal } from '../components/booking/RequestReturnModal';
 import { PriceSummary } from '../components/motor/PriceSummary';
 import { Button } from '../components/ui/Button';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
@@ -17,13 +28,23 @@ import { useAsync } from '../hooks/useAsync';
 import { useAuth } from '../context/AuthContext';
 import { ApiError, cancelBooking, getBookingByCode, getMotorsByIds } from '../services/api';
 import { site } from '../config/site';
-import { formatDate } from '../lib/format';
-
+import { formatDate, formatRupiah } from '../lib/format';
 import { useRealtimeSubscription } from '../hooks/useRealtimeSubscription';
 import { useRealtime } from '../context/RealtimeContext';
-import { useEffect } from 'react';
 
-const paymentLabel = { transfer: 'Transfer bank', ewallet: 'E-wallet', cash: 'Bayar di tempat' } as const;
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:5001/api').replace(/\/api\/?$/, '');
+
+function resolvePhotoUrl(url?: string | null) {
+  if (!url) return '';
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) return url;
+  return `${API_BASE_URL}/${url.replace(/^\/+/, '')}`;
+}
+
+const paymentLabel = {
+  transfer: 'Transfer Bank / VA',
+  ewallet: 'QRIS / E-Wallet',
+  cash: 'Bayar Cash / Tunai di Toko',
+} as const;
 const pickupLabel = { store: 'Ambil di toko', delivery: 'Antar ke lokasi' } as const;
 
 export default function BookingDetail() {
@@ -34,6 +55,7 @@ export default function BookingDetail() {
   const justCreated = (location.state as { created?: boolean } | null)?.created === true;
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [returnModalOpen, setReturnModalOpen] = useState(false);
 
   const { data, loading, error, reload } = useAsync(async () => {
     const booking = await getBookingByCode(code, user?.id ?? '');
@@ -81,6 +103,8 @@ export default function BookingDetail() {
 
   const { booking, motor } = data;
   const canCancel = booking.status === 'pending' || booking.status === 'confirmed';
+  const isCash = booking.payment === 'cash' || booking.paymentMethod === 'cash';
+  const isActiveOrReturn = booking.status === 'active' || booking.status === 'return_requested';
   const waText = encodeURIComponent(`Halo ${site.name}, saya ingin bertanya tentang booking ${booking.code}.`);
 
   const doCancel = async () => {
@@ -116,6 +140,123 @@ export default function BookingDetail() {
         <h1 className="text-2xl font-bold text-ink sm:text-3xl">Booking {booking.code}</h1>
         <BookingStatusBadge status={booking.status} />
       </div>
+
+      {/* Alert Aturan Pembayaran Cash & Timer 24 Jam */}
+      {isCash && (
+        <div className="mt-4 flex items-start gap-3 rounded-xl border border-amber-300 bg-amber-50 p-4 text-amber-900">
+          <Banknote className="mt-0.5 h-5 w-5 shrink-0 text-amber-700" />
+          <div className="text-sm leading-relaxed">
+            <p className="font-bold">Informasi Pembayaran Tunai (Cash)</p>
+            <p className="mt-0.5">
+              Waktu sewa dihitung 24 jam penuh per hari dimulai sejak waktu Serah Terima Kunci oleh petugas.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Kartu Status Sewa Berjalan & Live Countdown 24 Jam */}
+      {isActiveOrReturn && (
+        <div className="mt-5 space-y-3">
+          <RentalCountdownCard
+            handedAt={booking.handedAt || booking.handoverAt}
+            dueAt={booking.dueAt}
+            days={booking.days}
+            pricePerDay={booking.pricePerDay}
+            paymentMethod={booking.payment}
+          />
+
+          {booking.status === 'active' && (
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50/70 p-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Sudah selesai menggunakan motor?</h3>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Ajukan pengembalian motor ke toko atau minta petugas menjemput di lokasi Anda.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReturnModalOpen(true)}
+                className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-blue-700 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800"
+              >
+                <RotateCcw className="h-4 w-4" />
+                Ajukan Pengembalian Motor
+              </button>
+            </div>
+          )}
+
+          {booking.status === 'return_requested' && (
+            <div className="rounded-xl border border-purple-200 bg-purple-50/80 p-4 space-y-2.5">
+              <div className="flex items-center gap-2 text-purple-900 font-bold text-sm">
+                <Clock className="h-4 w-4 text-purple-700" />
+                Pengajuan Pengembalian Motor Sedang Diverifikasi Admin
+              </div>
+              <div className="grid gap-2 text-xs text-purple-900 sm:grid-cols-2">
+                <div className="flex items-center gap-1.5">
+                  {booking.returnMethod === 'pickup' ? (
+                    <Truck className="h-4 w-4 text-purple-700" />
+                  ) : (
+                    <Store className="h-4 w-4 text-purple-700" />
+                  )}
+                  <span>
+                    Metode:{' '}
+                    <strong>
+                      {booking.returnMethod === 'pickup'
+                        ? 'Minta Jemput Petugas (Pickup)'
+                        : 'Kembalikan ke Toko'}
+                    </strong>
+                  </span>
+                </div>
+                {booking.returnRequestedAt && (
+                  <div>
+                    Waktu Pengajuan: <strong>{formatDateTimeID(booking.returnRequestedAt)}</strong>
+                  </div>
+                )}
+              </div>
+              {booking.returnCustomerNotes && (
+                <p className="text-xs text-purple-800 bg-white/80 rounded-lg p-2.5 border border-purple-200">
+                  <span className="font-semibold">Catatan Anda:</span> {booking.returnCustomerNotes}
+                </p>
+              )}
+              {booking.returnPhotoUrl && (
+                <div className="pt-1">
+                  <p className="text-xs font-semibold text-purple-900 mb-1">Foto Kondisi Motor:</p>
+                  <img
+                    src={resolvePhotoUrl(booking.returnPhotoUrl)}
+                    alt="Kondisi motor saat dikembalikan"
+                    className="h-36 w-auto rounded-lg border border-purple-200 object-cover"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Ringkasan Sewa Selesai */}
+      {booking.status === 'completed' && (
+        <div className="mt-5 rounded-xl border border-emerald-200 bg-emerald-50/80 p-4 space-y-2 text-sm text-emerald-950">
+          <div className="flex items-center gap-2 font-bold">
+            <ShieldCheck className="h-5 w-5 text-emerald-600" />
+            Sewa Motor Telah Selesai & Diverifikasi Admin
+          </div>
+          <div className="grid gap-2 text-xs sm:grid-cols-3 pt-1">
+            <div>
+              <span className="text-emerald-700 block">Waktu Kembali Aktual</span>
+              <strong>{formatDateTimeID(booking.returnedAt)}</strong>
+            </div>
+            <div>
+              <span className="text-emerald-700 block">Denda Keterlambatan</span>
+              <strong>{booking.lateFee ? formatRupiah(booking.lateFee) : 'Rp 0 (Tepat Waktu)'}</strong>
+            </div>
+            <div>
+              <span className="text-emerald-700 block">Deposit Jaminan ({formatRupiah(booking.deposit || 200000)})</span>
+              <strong>
+                {booking.depositReturned !== false ? 'Telah Dikembalikan ke Penyewa' : 'Dipotong Biaya/Denda'}
+              </strong>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="card mt-6 divide-y divide-neutral-200">
         <section className="flex flex-col gap-4 p-5 sm:flex-row">
@@ -182,11 +323,18 @@ export default function BookingDetail() {
           >
             Hubungi kami
           </Button>
-          {canCancel && (
-            <Button variant="danger" onClick={() => setConfirmOpen(true)}>
-              Batalkan booking
-            </Button>
-          )}
+          <div className="flex flex-wrap gap-2">
+            {booking.status === 'active' && (
+              <Button onClick={() => setReturnModalOpen(true)}>
+                Ajukan Pengembalian Motor
+              </Button>
+            )}
+            {canCancel && (
+              <Button variant="danger" onClick={() => setConfirmOpen(true)}>
+                Batalkan booking
+              </Button>
+            )}
+          </div>
         </section>
       </div>
 
@@ -200,6 +348,17 @@ export default function BookingDetail() {
         message={`Booking ${booking.code} akan dibatalkan. Pembatalan gratis berlaku maksimal ${site.rental.freeCancelHours} jam sebelum sewa dimulai.`}
         confirmLabel="Ya, batalkan"
         cancelLabel="Tidak"
+      />
+
+      <RequestReturnModal
+        open={returnModalOpen}
+        booking={booking}
+        motorName={motor?.name}
+        onClose={() => setReturnModalOpen(false)}
+        onSuccess={() => {
+          setReturnModalOpen(false);
+          reload();
+        }}
       />
     </PageContainer>
   );

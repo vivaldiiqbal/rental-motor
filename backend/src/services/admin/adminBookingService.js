@@ -23,8 +23,8 @@ const eventBroadcaster = require('../realtime/eventBroadcaster');
 
 const adminBookingService = {
   async getBookings(filter = {}, paging = {}) {
-    const page = Math.max(1, Number(paging.page) || 1);
-    const limit = Math.max(1, Math.min(100, Number(paging.limit) || 10));
+    const page = Math.max(1, Number(paging.page ?? filter.page) || 1);
+    const limit = Math.max(1, Math.min(100, Number(paging.limit ?? filter.limit) || 10));
 
     const [result, counts, motorsRes] = await Promise.all([
       bookingRepo.findAll(filter, { page, limit }),
@@ -49,6 +49,11 @@ const adminBookingService = {
 
     return {
       items: enrichedItems,
+      total: result.total,
+      page,
+      limit,
+      totalPages,
+      statusCounts: counts,
       meta: {
         total: result.total,
         page,
@@ -130,6 +135,7 @@ const adminBookingService = {
   },
 
   async confirmManualPayment(bookingId, payload = {}, actor = {}, reqInfo = {}) {
+    const actorUser = actor?.user || actor || {};
     return transaction(async (tx) => {
       let booking = await resolveBooking(bookingId, tx);
       if (!booking) {
@@ -215,6 +221,14 @@ const adminBookingService = {
         version: Number(booking.version || 1) + 1,
       });
 
+      // Update otomatis status motor di PostgreSQL menjadi 'rented' saat pembayaran dikonfirmasi
+      if (tx.driver === 'postgres' && tx.client) {
+        await tx.client.query(
+          "UPDATE motorcycles SET status = 'rented', updated_at = now() WHERE id = $1",
+          [Number(booking.motorId)],
+        );
+      }
+
       // Catat log audit
       await recordAudit(tx.auditRepo, {
         actorId: actor.id,
@@ -257,6 +271,7 @@ const adminBookingService = {
   },
 
   async cancelBooking(bookingId, payload = {}, actor = {}, reqInfo = {}) {
+    actor = actor?.user || actor || {};
     if (!payload.reason || !payload.reason.trim()) {
       throw new AppError('Alasan pembatalan wajib diisi.', 'VALIDATION_ERROR', 400);
     }
@@ -400,6 +415,24 @@ const adminBookingService = {
         timeline,
       });
 
+      // Otomatis kembalikan status motor menjadi 'active' (tersedia) jika tidak ada booking aktif lain
+      if (tx.driver === 'postgres' && tx.client) {
+        const remaining = await tx.client.query(
+          `SELECT 1 FROM bookings
+           WHERE motorcycle_id = $1
+             AND status IN ('pending', 'confirmed', 'active')
+             AND id <> $2
+           LIMIT 1`,
+          [Number(booking.motorId), Number(booking.id)],
+        );
+        if (remaining.rows.length === 0) {
+          await tx.client.query(
+            "UPDATE motorcycles SET status = 'active', updated_at = now() WHERE id = $1 AND status = 'rented'",
+            [Number(booking.motorId)],
+          );
+        }
+      }
+
       await recordAudit(tx.auditRepo, {
         actorId: actor.id,
         actorRole: actor.role,
@@ -452,6 +485,7 @@ const adminBookingService = {
   },
 
   async addNote(bookingId, noteText, actor = {}, reqInfo = {}) {
+    actor = actor?.user || actor || {};
     if (!noteText || !noteText.trim()) {
       throw new AppError('Catatan tidak boleh kosong.', 'VALIDATION_ERROR', 400);
     }
@@ -487,6 +521,7 @@ const adminBookingService = {
   },
 
   async markDepositRefunded(bookingId, actor = {}, reqInfo = {}) {
+    actor = actor?.user || actor || {};
     return transaction(async (tx) => {
       const booking = await resolveBooking(bookingId, tx);
       if (!booking) {

@@ -78,13 +78,14 @@ const addonRepo = {
       const name = payload.name.trim();
       const code = (payload.code || `addon-${Date.now()}`).toLowerCase().replace(/\s+/g, '-');
       const price = Number(payload.price ?? payload.pricePerDay ?? 10000);
+      const description = payload.description ? String(payload.description).trim() : '';
       const isActive = payload.isActive !== false;
 
       const res = await db.query(
-        `INSERT INTO addons (code, name, price_per_day, is_active, updated_at)
-         VALUES ($1, $2, $3, $4, now())
+        `INSERT INTO addons (code, name, price_per_day, description, is_active, updated_at)
+         VALUES ($1, $2, $3, $4, $5, now())
          RETURNING *`,
-        [code, name, price, isActive],
+        [code, name, price, description, isActive],
       );
       return mapAddon(res.rows[0]);
     } catch (err) {
@@ -108,6 +109,10 @@ const addonRepo = {
       if (patch.price !== undefined || patch.pricePerDay !== undefined) {
         params.push(Number(patch.price ?? patch.pricePerDay));
         setClauses.push(`price_per_day = $${params.length}`);
+      }
+      if (patch.description !== undefined) {
+        params.push(String(patch.description || '').trim());
+        setClauses.push(`description = $${params.length}`);
       }
       if (patch.isActive !== undefined) {
         params.push(Boolean(patch.isActive));

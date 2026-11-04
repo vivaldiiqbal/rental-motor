@@ -1,5 +1,5 @@
 import React from 'react';
-import { Tag, Sparkles, AlertCircle, Info, Truck, ShieldCheck } from 'lucide-react';
+import { Tag, Sparkles, AlertCircle, Info, Truck, ShieldCheck, PackagePlus } from 'lucide-react';
 import { formatRupiah } from '../../lib/format';
 import type { BookingQuote } from '../../types';
 import { cn } from '../../lib/cn';
@@ -85,11 +85,35 @@ export const PriceSummary: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Add-ons */}
+          {/* Layanan Tambahan (Add-ons) Terpadu */}
           {hasAddons && (
-            <div className="flex items-center justify-between text-neutral-600">
-              <dt>Layanan Tambahan (Add-ons)</dt>
-              <dd className="font-medium text-ink">+{formatRupiah(quote.addOnsTotal || 0)}</dd>
+            <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-2.5 space-y-1.5">
+              <div className="flex items-center justify-between font-medium text-xs text-blue-900">
+                <span className="flex items-center gap-1.5 font-semibold">
+                  <PackagePlus className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                  Layanan Tambahan ({quote.selectedAddOns?.reduce((acc, a) => acc + (a.quantity || 1), 0) || 1} item)
+                </span>
+                <span className="font-bold text-ink">+{formatRupiah(quote.addOnsTotal || 0)}</span>
+              </div>
+              {Array.isArray(quote.selectedAddOns) && quote.selectedAddOns.length > 0 && (
+                <div className="space-y-1 pt-1 border-t border-blue-100 text-[11px] text-neutral-600">
+                  {quote.selectedAddOns.map((item, idx) => {
+                    const qty = item.quantity ?? item.qty ?? 1;
+                    const pricePerDay = item.price_per_day ?? item.pricePerDay ?? 0;
+                    const itemTotal = item.amount ?? item.total ?? item.price ?? pricePerDay * qty * safeDays;
+                    return (
+                      <div key={idx} className="flex justify-between items-center">
+                        <span className="truncate pr-2">
+                          {item.name} × {qty} unit
+                        </span>
+                        <span className="font-medium shrink-0 text-neutral-700">
+                          {formatRupiah(itemTotal)}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
 

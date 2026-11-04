@@ -663,6 +663,69 @@ const adminMotorService = {
       return updated;
     });
   },
+
+  async deleteMotorcycle(id, reqContext = {}) {
+    const motor = await motorRepo.findById(id);
+    if (!motor) {
+      throw new AppError('Armada motor tidak ditemukan', 404, ERROR_CODES.RESOURCE_NOT_FOUND);
+    }
+
+    return transaction(async (tx) => {
+      // 1. Cek apakah ada transaksi sewa aktif/pending/confirmed
+      if (tx.driver === 'postgres' && tx.client) {
+        const activeRes = await tx.client.query(
+          `SELECT booking_code, status FROM bookings
+           WHERE motorcycle_id = $1 AND status IN ('pending', 'confirmed', 'active')
+           LIMIT 1`,
+          [Number(id)],
+        );
+        if (activeRes.rows.length > 0) {
+          throw new AppError(
+            `Motor tidak dapat dihapus karena masih terkait transaksi sewa aktif (${activeRes.rows[0].booking_code} - status: ${activeRes.rows[0].status}).`,
+            409,
+            'MOTOR_IN_USE',
+          );
+        }
+
+        // Cek apakah ada riwayat booking selesai/batal
+        const anyRes = await tx.client.query(
+          'SELECT 1 FROM bookings WHERE motorcycle_id = $1 LIMIT 1',
+          [Number(id)],
+        );
+        if (anyRes.rows.length > 0) {
+          // Jika ada riwayat, soft-delete dengan mengubah status ke inactive
+          await tx.motorRepo.update(id, { status: 'inactive' });
+        } else {
+          // Hapus relasi gambar, fitur, dan baris motor secara bersih
+          await tx.client.query('DELETE FROM motorcycle_images WHERE motorcycle_id = $1', [Number(id)]);
+          await tx.client.query('DELETE FROM motorcycle_features WHERE motorcycle_id = $1', [Number(id)]);
+          await tx.client.query('DELETE FROM gps_devices WHERE motorcycle_id = $1', [Number(id)]);
+          await tx.motorRepo.delete(id);
+        }
+      } else {
+        await tx.motorRepo.delete(id);
+      }
+
+      await recordAudit(
+        tx.auditRepo,
+        reqContext,
+        'DELETE_MOTORCYCLE',
+        'Motorcycle',
+        id,
+        motor,
+        null,
+      );
+
+      await broadcaster.publish(tx, {
+        type: 'motor.availability.changed',
+        entityId: String(id),
+        userId: null,
+        payload: { motorId: id, action: 'deleted' },
+      });
+
+      return { success: true, message: `Armada motor ${motor.name} (${motor.plate || motor.plateNumber}) berhasil dihapus.` };
+    });
+  },
 };
 
 module.exports = adminMotorService;
