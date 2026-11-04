@@ -380,6 +380,53 @@ export const BookingDetail: React.FC = () => {
     }
   };
 
+  // Quick Approve & Handover
+  const handleQuickApproveAndHandover = async () => {
+    if (actionLoading || !booking) return;
+    setActionLoading(true);
+    try {
+      const updated = await adminApi.approveAndHandover(booking.id);
+      setBooking(updated);
+      toast.success('Pesanan disetujui & kunci motor diserahkan! Masa sewa aktif.', { id: 'booking-action-toast' });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error?.message || err?.message || 'Gagal menyetujui dan menyerahkan kunci.', { id: 'booking-action-toast' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Quick Reject
+  const handleReject = async () => {
+    if (actionLoading || !booking) return;
+    if (!window.confirm(`Apakah Anda yakin ingin menolak pesanan ${booking.code || booking.bookingCode}? Unit motor akan otomatis kembali tersedia di katalog.`)) return;
+    setActionLoading(true);
+    try {
+      const updated = await adminApi.rejectBooking(booking.id, 'Ditolak oleh admin via panel operasional');
+      setBooking(updated);
+      toast.success('Pesanan berhasil ditolak. Slot motor kembali tersedia.', { id: 'booking-action-toast' });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error?.message || err?.message || 'Gagal menolak pesanan.', { id: 'booking-action-toast' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Quick Complete Return
+  const handleQuickCompleteReturn = async () => {
+    if (actionLoading || !booking) return;
+    if (!window.confirm(`Konfirmasi pengembalian unit ${booking.motorName}? Uang deposit Rp 200.000 akan ditandai telah dikembalikan ke pelanggan dan transaksi selesai.`)) return;
+    setActionLoading(true);
+    try {
+      const updated = await adminApi.completeReturn(booking.id);
+      setBooking(updated);
+      toast.success('Pengembalian unit berhasil dicatat & deposit telah dikembalikan. Sewa selesai!', { id: 'booking-action-toast' });
+    } catch (err: any) {
+      toast.error(err?.response?.data?.error?.message || err?.message || 'Gagal menyelesaikan pengembalian motor.', { id: 'booking-action-toast' });
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Mark Deposit Returned
   const handleMarkDepositRefunded = async () => {
     if (actionLoading || !booking) return;
@@ -425,10 +472,6 @@ export const BookingDetail: React.FC = () => {
       </div>
     );
   }
-
-  const isDocVerified = docCheck.isVerified;
-  const isPaid = booking.paymentStatus === 'paid';
-  const canHandover = isDocVerified && isPaid;
 
   return (
     <div className="space-y-6">
@@ -476,65 +519,90 @@ export const BookingDetail: React.FC = () => {
 
         {/* Operational Transition Buttons per Status */}
         <div className="flex flex-wrap items-center gap-2">
-          {/* Status: PENDING */}
-          {booking.status === 'pending' && can('bookings:confirm_payment') && (
-            <button
-              type="button"
-              disabled={actionLoading}
-              onClick={() => setPaymentModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 transition-colors"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              Konfirmasi Pembayaran Manual
-            </button>
-          )}
-
-          {/* Status: CONFIRMED atau PENDING (Bayar Cash) -> Serah Terima Kunci */}
-          {(booking.status === 'confirmed' ||
-            (booking.status === 'pending' && booking.paymentMethod === 'cash')) &&
-            can('bookings:handover') && (
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                <button
-                  type="button"
-                  disabled={actionLoading}
-                  title="Buka formulir serah terima kunci motor"
-                  onClick={() => setHandoverModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors disabled:opacity-50"
-                >
-                  <Key className="w-4 h-4" />
-                  Serah Terima Kunci
-                </button>
-                {!canHandover && (
-                  <span className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 font-medium">
-                    <AlertCircle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
-                    <span>
-                      {!isDocVerified
-                        ? docCheck.reason
-                        : booking.paymentMethod === 'cash'
-                        ? 'Bayar Tunai: akan otomatis dilunasi saat Serah Kunci'
-                        : 'Menunggu pelunasan pembayaran sewa'}
-                    </span>
-                  </span>
-                )}
-              </div>
-            )}
-
-          {/* Status: ACTIVE atau RETURN_REQUESTED -> Verifikasi Pengembalian */}
-          {(booking.status === 'active' || booking.status === 'return_requested') &&
-            can('bookings:return') && (
+          {/* Status: PENDING / EXPIRED -> Setujui & Serahkan Kunci, Setujui Pembayaran, atau Tolak */}
+          {(booking.status === 'pending' || (booking.status as any) === 'expired') && (
+            <>
               <button
                 type="button"
                 disabled={actionLoading}
-                onClick={() => setReturnModalOpen(true)}
-                className={`inline-flex items-center gap-1.5 px-4 py-2 text-white rounded-xl text-xs font-bold shadow-xs disabled:opacity-50 transition-colors ${
-                  booking.status === 'return_requested'
-                    ? 'bg-purple-700 hover:bg-purple-800 ring-2 ring-purple-300'
-                    : 'bg-amber-600 hover:bg-amber-700'
-                }`}
+                onClick={handleQuickApproveAndHandover}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs disabled:opacity-50 transition-colors"
+                title="Setujui Pembayaran & Langsung Serahkan Kunci (1 Langkah Cepat)"
               >
-                <RotateCcw className="w-4 h-4" />
-                Verifikasi Pengembalian & Selesaikan Sewa
+                <Key className="w-4 h-4" />
+                Setujui & Serahkan Kunci
               </button>
+
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => setPaymentModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 transition-colors"
+                title="Konfirmasi Pembayaran Terlebih Dahulu"
+              >
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                Setujui Pembayaran (Dikonfirmasi)
+              </button>
+
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={handleReject}
+                className="inline-flex items-center gap-1.5 px-3 py-2 bg-rose-50 border border-rose-200 text-rose-700 hover:bg-rose-100 rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 transition-colors"
+                title="Tolak Pesanan Ini & Bebaskan Slot Motor"
+              >
+                <Ban className="w-4 h-4" />
+                Tolak Pesanan
+              </button>
+            </>
+          )}
+
+          {/* Status: CONFIRMED -> Serah Terima Kunci */}
+          {booking.status === 'confirmed' && can('bookings:handover') && (
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+              <button
+                type="button"
+                disabled={actionLoading}
+                title="Buka formulir serah terima kunci motor"
+                onClick={handleQuickApproveAndHandover}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold shadow-xs transition-colors disabled:opacity-50"
+              >
+                <Key className="w-4 h-4" />
+                Serahkan Kunci Motor
+              </button>
+              {!docCheck.isVerified && (
+                <span className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1.5 rounded-xl flex items-center gap-1.5 font-medium">
+                  <AlertCircle className="w-3.5 h-3.5 text-amber-600 flex-shrink-0" />
+                  <span>{docCheck.reason}</span>
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* Status: ACTIVE atau RETURN_REQUESTED -> Selesaikan & Terima Motor */}
+          {(booking.status === 'active' || booking.status === 'return_requested') &&
+            can('bookings:return') && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={handleQuickCompleteReturn}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs disabled:opacity-50 transition-colors"
+                  title="Selesaikan Sewa & Terima Motor (Deposit Rp 200.000 Otomatis Dikembalikan)"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  Selesaikan & Terima Motor
+                </button>
+                <button
+                  type="button"
+                  disabled={actionLoading}
+                  onClick={() => setReturnModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 transition-colors"
+                  title="Buka Formulir Detail Odometer & Kerusakan"
+                >
+                  Detail Pengembalian
+                </button>
+              </div>
             )}
 
           {/* Status: COMPLETED */}

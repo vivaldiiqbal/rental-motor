@@ -139,13 +139,14 @@ const returnService = {
         returnedAt = parsed;
       }
 
-      // Validasi odometer akhir
-      const odometerEnd = Number(payload.odometerEnd !== undefined ? payload.odometerEnd : payload.endOdometer);
+      // Validasi odometer akhir (default ke odometer awal jika tidak diisi pada aksi cepat)
+      const motorBefore = await tx.motorRepo.findById(booking.motorId);
+      const startOdo = Number(booking.startOdometer || (motorBefore ? motorBefore.odometer : 0) || 0);
+      let odometerEnd = Number(payload.odometerEnd !== undefined ? payload.odometerEnd : payload.endOdometer);
       if (isNaN(odometerEnd) || odometerEnd < 0) {
-        throw new AppError('Nilai odometer akhir harus berupa angka non-negatif.', 'VALIDATION_ERROR', 400);
+        odometerEnd = startOdo;
       }
 
-      const startOdo = Number(booking.startOdometer || 0);
       if (startOdo > 0 && odometerEnd < startOdo) {
         throw new AppError(
           `Odometer akhir (${odometerEnd} km) tidak boleh lebih kecil dari odometer awal saat serah terima (${startOdo} km).`,
@@ -172,8 +173,8 @@ const returnService = {
         otherFee,
       );
 
-      // 1. Simpan return record unik
-      const shouldConfirmDepositRefund = Boolean(payload.confirmDepositRefund) && summary.depositRefund > 0;
+      // 1. Simpan return record unik (deposit refund otomatis terkonfirmasi)
+      const shouldConfirmDepositRefund = payload.confirmDepositRefund !== false && summary.depositRefund > 0;
       const returnRecord = await tx.returnRepo.create({
         bookingId: booking.id,
         returnedAt: summary.actualReturn,
@@ -202,13 +203,19 @@ const returnService = {
           const remainingRes = await tx.client.query(
             `SELECT 1 FROM bookings
              WHERE motorcycle_id = $1
-               AND status IN ('confirmed', 'active')
+               AND (status = 'active' OR (status IN ('confirmed', 'pending') AND end_date >= CURRENT_DATE))
                AND id <> $2
              LIMIT 1`,
             [Number(booking.motorId), Number(booking.id)],
           );
           if (remainingRes.rows.length > 0) {
             nextMotorStatus = 'rented';
+          } else {
+            nextMotorStatus = 'available';
+            await tx.client.query(
+              "UPDATE motorcycles SET status = 'active', updated_at = now() WHERE id = $1",
+              [Number(booking.motorId)],
+            );
           }
         }
         await tx.motorRepo.update(motor.id, {

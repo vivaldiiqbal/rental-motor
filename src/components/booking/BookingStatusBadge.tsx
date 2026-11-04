@@ -2,13 +2,13 @@ import { Badge } from '../ui/Badge';
 import type { BookingStatus } from '../../types';
 
 const map: Record<BookingStatus, { label: string; tone: 'success' | 'neutral' | 'warning' | 'danger' | 'primary' }> = {
-  pending: { label: 'Menunggu pembayaran', tone: 'warning' },
-  confirmed: { label: 'Terkonfirmasi', tone: 'success' },
-  active: { label: 'Sedang berjalan', tone: 'primary' },
-  return_requested: { label: 'Menunggu Verifikasi Pengembalian', tone: 'warning' },
+  pending: { label: 'Menunggu Persetujuan', tone: 'warning' },
+  confirmed: { label: 'Dikonfirmasi', tone: 'primary' },
+  active: { label: 'Sedang Disewa', tone: 'success' },
+  return_requested: { label: 'Pengembalian Diajukan', tone: 'warning' },
   completed: { label: 'Selesai', tone: 'neutral' },
-  cancelled: { label: 'Dibatalkan', tone: 'danger' },
-  expired: { label: 'Kedaluwarsa', tone: 'danger' },
+  cancelled: { label: 'Ditolak / Dibatalkan', tone: 'danger' },
+  expired: { label: 'Menunggu Persetujuan', tone: 'warning' },
 };
 
 export function BookingStatusBadge({ status }: { status: BookingStatus }) {

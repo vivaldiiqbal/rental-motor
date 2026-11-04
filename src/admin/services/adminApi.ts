@@ -903,6 +903,91 @@ export const adminApi = {
     return b;
   },
 
+  async approveAndHandover(
+    bookingId: string | number,
+    payload?: {
+      startOdometer?: number;
+      initialFuel?: string;
+      conditionNotes?: string;
+    },
+  ): Promise<AdminBooking> {
+    if (!isMock) {
+      const headers = await getAdminHeaders();
+      const res = await apiClient.post(
+        `/admin/bookings/${bookingId}/approve-handover`,
+        payload || {},
+        { headers }
+      );
+      if (res.data && res.data.data) {
+        return mapAdminBooking(res.data.data);
+      }
+    }
+
+    await delay(350);
+    const store = getStoredData();
+    const b = store.bookings.find((x) => x.id === String(bookingId) || x.code === String(bookingId));
+    if (!b) throw new Error('Booking tidak ditemukan.');
+    b.status = 'active';
+    b.paymentStatus = 'paid';
+    b.handoverAt = new Date().toISOString();
+    b.timeline.push({
+      status: 'active',
+      title: 'Pemesanan Disetujui & Kunci Diserahkan',
+      note: 'Disetujui cepat dan kunci diserahkan oleh staf/admin',
+      actor: adminApi.getCurrentUser()?.name || 'Admin',
+      timestamp: new Date().toISOString(),
+    });
+    saveStore(store);
+    return b;
+  },
+
+  async rejectBooking(
+    bookingId: string | number,
+    reason = 'Ditolak oleh admin',
+  ): Promise<AdminBooking> {
+    if (!isMock) {
+      const headers = await getAdminHeaders();
+      const res = await apiClient.post(
+        `/admin/bookings/${bookingId}/reject`,
+        { reason },
+        { headers }
+      );
+      if (res.data && res.data.data) {
+        return mapAdminBooking(res.data.data);
+      }
+    }
+    return this.cancelBooking(String(bookingId), reason);
+  },
+
+  async completeReturn(
+    bookingId: string | number,
+    payload?: {
+      endOdometer?: number;
+      finalFuel?: string;
+      notes?: string;
+      damageFee?: number;
+      otherFee?: number;
+    },
+  ): Promise<AdminBooking> {
+    if (!isMock) {
+      const headers = await getAdminHeaders();
+      const res = await apiClient.post(
+        `/admin/bookings/${bookingId}/complete-return`,
+        payload || {},
+        { headers }
+      );
+      if (res.data && res.data.data) {
+        return mapAdminBooking(res.data.data);
+      }
+    }
+    return this.returnMotor(String(bookingId), {
+      endOdometer: payload?.endOdometer || 12000,
+      finalFuel: payload?.finalFuel || 'Penuh (F)',
+      notes: payload?.notes || 'Unit diterima lengkap tanpa catatan kerusakan.',
+      confirmDepositRefund: true,
+    } as any);
+  },
+
   async handoverMotor(
     bookingId: string,
     payload?: {

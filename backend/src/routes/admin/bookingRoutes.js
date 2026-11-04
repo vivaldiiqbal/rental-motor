@@ -25,6 +25,9 @@ router.use(requireRole('admin', 'staff'));
 
 router.get('/', asyncHandler(adminBookingController.getBookings));
 router.get('/:id', asyncHandler(adminBookingController.getBookingById));
+router.post('/:id/approve-handover', asyncHandler(adminBookingController.approveAndHandover));
+router.post('/:id/reject', asyncHandler(adminBookingController.rejectBooking));
+router.post('/:id/complete-return', asyncHandler(adminBookingController.completeReturn));
 router.post('/:id/confirm-manual-payment', asyncHandler(adminBookingController.confirmManualPayment));
 router.post('/:id/handover', asyncHandler(adminBookingController.handover));
 router.post('/:id/return', asyncHandler(adminBookingController.returnMotor));

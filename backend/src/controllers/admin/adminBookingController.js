@@ -43,6 +43,33 @@ const adminBookingController = {
     });
   },
 
+  async approveAndHandover(req, res) {
+    const reqInfo = { ip: req.ip, userAgent: req.headers?.['user-agent'] };
+    const result = await adminBookingService.quickApproveAndHandover(req.params.id, req.body, req.user, reqInfo);
+    return successResponse(res, {
+      data: result,
+      message: 'Pemesanan disetujui & kunci motor berhasil diserahkan. Status sewa kini aktif.',
+    });
+  },
+
+  async rejectBooking(req, res) {
+    const reqInfo = { ip: req.ip, userAgent: req.headers?.['user-agent'] };
+    const result = await adminBookingService.rejectBooking(req.params.id, req.body, req.user, reqInfo);
+    return successResponse(res, {
+      data: result,
+      message: 'Pesanan berhasil ditolak. Slot unit motor kembali tersedia.',
+    });
+  },
+
+  async completeReturn(req, res) {
+    const reqInfo = { ip: req.ip, userAgent: req.headers?.['user-agent'] };
+    const result = await adminBookingService.completeReturn(req.params.id, req.body, req.user, reqInfo);
+    return successResponse(res, {
+      data: result,
+      message: 'Pengembalian unit berhasil dicatat dan deposit jaminan telah dikembalikan. Transaksi sewa selesai.',
+    });
+  },
+
   async returnMotor(req, res) {
     const reqInfo = { ip: req.ip, userAgent: req.headers?.['user-agent'] };
     const result = await returnService.returnMotor(req.params.id, req.body, req.user, reqInfo);

@@ -11,11 +11,6 @@ function startJobs() {
     return; // Nonaktifkan otomatis saat unit/integration test
   }
 
-  // Jalankan tiap menit: mengecek booking pending yang lewat expiresAt
-  const expireTask = cron.schedule('* * * * *', async () => {
-    await expireBookingsJob();
-  });
-
   // Jalankan setiap 15 menit: mengecek booking aktif yang telah melewati tanggal kembali
   const completeTask = cron.schedule('*/15 * * * *', async () => {
     await autoCompleteBookingsJob();
@@ -31,8 +26,8 @@ function startJobs() {
     await runGpsRetentionJob();
   });
 
-  tasks.push(expireTask, completeTask, gpsOfflineTask, gpsRetentionTask);
-  logger.info('[CRON] Background scheduler aktif (expireBookings, completeReminders, gpsOffline tiap menit, gpsRetention harian).');
+  tasks.push(completeTask, gpsOfflineTask, gpsRetentionTask);
+  logger.info('[CRON] Background scheduler aktif (completeReminders, gpsOffline tiap menit, gpsRetention harian). Expiry otomatis dimatikan.');
 }
 
 function stopJobs() {

@@ -2,7 +2,6 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Eye,
-  CheckCircle2,
   Key,
   RotateCcw,
   Ban,
@@ -19,7 +18,6 @@ import { ConfirmDialog } from '../components/ConfirmDialog';
 import { CsvButton } from '../components/CsvButton';
 import { formatPrice } from '../../utils/formatPrice';
 import { formatDate } from '../../utils/formatDate';
-import { usePermission } from '../hooks/usePermission';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { useRealtime } from '../../context/RealtimeContext';
 import { computeRentalTimer, formatDateTimeID } from '../../components/booking/RentalCountdownCard';
@@ -27,7 +25,6 @@ import { computeRentalTimer, formatDateTimeID } from '../../components/booking/R
 export const Bookings: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { can, role } = usePermission();
 
   const [bookings, setBookings] = useState<AdminBooking[]>([]);
   const [motors, setMotors] = useState<Motor[]>([]);
@@ -66,7 +63,7 @@ export const Bookings: React.FC = () => {
   const [actionLoading, setActionLoading] = useState<boolean>(false);
   const [confirmDialog, setConfirmDialog] = useState<{
     isOpen: boolean;
-    type: 'confirm_payment' | 'handover' | 'return' | 'cancel' | null;
+    type: 'approve_handover' | 'reject' | 'complete_return' | 'confirm_payment' | 'handover' | 'return' | 'cancel' | null;
     booking: AdminBooking | null;
     title: string;
     message: string;
@@ -190,10 +187,46 @@ export const Bookings: React.FC = () => {
 
   // Open confirmation modal for safe action handling
   const triggerAction = (
-    type: 'confirm_payment' | 'handover' | 'return' | 'cancel',
+    type: 'approve_handover' | 'reject' | 'complete_return' | 'confirm_payment' | 'handover' | 'return' | 'cancel',
     booking: AdminBooking,
   ) => {
     switch (type) {
+      case 'approve_handover':
+        setConfirmDialog({
+          isOpen: true,
+          type,
+          booking,
+          title: 'Setujui & Serahkan Kunci',
+          message: `Setujui pesanan ${booking.code || booking.bookingCode} untuk ${booking.renter?.name || booking.userName} dan langsung serahkan kunci unit ${booking.motorName}? Status pembayaran akan ditandai LUNAS, serah terima dicatat saat ini, dan status sewa langsung AKTIF.`,
+          variant: 'primary',
+          confirmText: 'Setujui & Serahkan Kunci',
+        });
+        break;
+
+      case 'reject':
+        setConfirmDialog({
+          isOpen: true,
+          type,
+          booking,
+          title: 'Tolak Pesanan',
+          message: `Apakah Anda yakin ingin menolak pesanan ${booking.code || booking.bookingCode}? Status akan diubah menjadi "Ditolak / Dibatalkan" dan unit motor ${booking.motorName} akan otomatis kembali TERSEDIA di katalog pelanggan.`,
+          variant: 'danger',
+          confirmText: 'Tolak Pesanan',
+        });
+        break;
+
+      case 'complete_return':
+        setConfirmDialog({
+          isOpen: true,
+          type,
+          booking,
+          title: 'Selesaikan & Terima Motor',
+          message: `Konfirmasi pengembalian unit ${booking.motorName} dari ${booking.renter?.name || booking.userName}? Uang deposit jaminan Rp 200.000 akan ditandai telah dikembalikan ke pelanggan, transaksi menjadi Selesai, dan unit motor langsung kembali TERSEDIA di katalog.`,
+          variant: 'primary',
+          confirmText: 'Selesaikan & Terima Motor',
+        });
+        break;
+
       case 'confirm_payment':
         setConfirmDialog({
           isOpen: true,
@@ -253,7 +286,22 @@ export const Bookings: React.FC = () => {
     setActionLoading(true);
 
     try {
-      if (type === 'confirm_payment') {
+      if (type === 'approve_handover') {
+        await adminApi.approveAndHandover(booking.id);
+        toast.success(`Pesanan ${booking.code || booking.bookingCode} disetujui & kunci motor diserahkan!`, {
+          id: 'booking-action-toast',
+        });
+      } else if (type === 'reject') {
+        await adminApi.rejectBooking(booking.id, 'Ditolak oleh admin via panel operasional');
+        toast.success(`Pesanan ${booking.code || booking.bookingCode} berhasil ditolak. Slot motor kembali tersedia.`, {
+          id: 'booking-action-toast',
+        });
+      } else if (type === 'complete_return') {
+        await adminApi.completeReturn(booking.id);
+        toast.success(`Pengembalian unit berhasil dicatat & deposit telah dikembalikan. Transaksi selesai!`, {
+          id: 'booking-action-toast',
+        });
+      } else if (type === 'confirm_payment') {
         await adminApi.confirmPayment(booking.id, 'transfer', 'Dikonfirmasi cepat via tabel');
         toast.success(`Pembayaran ${booking.code || booking.bookingCode} berhasil dikonfirmasi.`, {
           id: 'booking-action-toast',
@@ -283,7 +331,7 @@ export const Bookings: React.FC = () => {
       setConfirmDialog((prev) => ({ ...prev, isOpen: false }));
       fetchBookings();
     } catch (err: any) {
-      toast.error(err.message || 'Gagal menjalankan aksi operasional.', {
+      toast.error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || 'Gagal menjalankan aksi operasional.', {
         id: 'booking-action-toast',
       });
     } finally {
@@ -421,62 +469,73 @@ export const Bookings: React.FC = () => {
     },
     {
       key: 'actions',
-      header: 'Aksi',
+      header: 'Aksi Cepat & Operasional',
       align: 'right',
       render: (item) => (
         <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-          {item.status === 'pending' && can('bookings:confirm_payment') && (
-            <button
-              type="button"
-              disabled={actionLoading}
-              onClick={() => triggerAction('confirm_payment', item)}
-              title="Konfirmasi Pembayaran Manual"
-              className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg transition-colors disabled:opacity-50"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-            </button>
+          {/* Tahap 1 & 2: Booking Menunggu Persetujuan -> Setujui & Serahkan Kunci atau Tolak */}
+          {(item.status === 'pending' || (item.status as any) === 'expired') && (
+            <>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => triggerAction('approve_handover', item)}
+                title="Setujui Pembayaran & Langsung Serahkan Kunci (1 Langkah Cepat)"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs disabled:opacity-50"
+              >
+                <Key className="w-3.5 h-3.5" />
+                <span>Setujui & Serahkan Kunci</span>
+              </button>
+
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => triggerAction('reject', item)}
+                title="Tolak Pesanan & Kembalikan Slot Motor"
+                className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-50"
+              >
+                <Ban className="w-4 h-4" />
+              </button>
+            </>
           )}
 
-          {(item.status === 'confirmed' ||
-            (item.status === 'pending' && item.paymentMethod === 'cash')) &&
-            can('bookings:handover') && (
+          {/* Booking Dikonfirmasi -> Serahkan Kunci */}
+          {item.status === 'confirmed' && (
+            <>
               <button
                 type="button"
                 disabled={actionLoading}
-                onClick={() => navigate(`/admin/bookings/${item.id}`)}
-                title="Buka Formulir Serah Terima Kunci"
-                className="p-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors disabled:opacity-50"
+                onClick={() => triggerAction('approve_handover', item)}
+                title="Serahkan Kunci Motor ke Pelanggan"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs disabled:opacity-50"
               >
-                <Key className="w-4 h-4" />
+                <Key className="w-3.5 h-3.5" />
+                <span>Serahkan Kunci</span>
               </button>
-            )}
 
-          {(item.status === 'active' || item.status === 'return_requested') &&
-            can('bookings:return') && (
               <button
                 type="button"
                 disabled={actionLoading}
-                onClick={() => navigate(`/admin/bookings/${item.id}`)}
-                title="Verifikasi Pengembalian & Selesaikan Sewa"
-                className={`p-1.5 rounded-lg transition-colors disabled:opacity-50 ${
-                  item.status === 'return_requested'
-                    ? 'bg-purple-100 text-purple-800 hover:bg-purple-200 ring-1 ring-purple-300'
-                    : 'bg-amber-50 text-amber-700 hover:bg-amber-100'
-                }`}
+                onClick={() => triggerAction('reject', item)}
+                title="Batalkan Pesanan & Kembalikan Slot Motor"
+                className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-50"
               >
-                <RotateCcw className="w-4 h-4" />
+                <Ban className="w-4 h-4" />
               </button>
-            )}
+            </>
+          )}
 
-          {role === 'admin' && (item.status === 'pending' || item.status === 'confirmed') && (
+          {/* Tahap 3 & 4: Sedang Disewa -> Selesaikan & Terima Motor */}
+          {(item.status === 'active' || item.status === 'return_requested') && (
             <button
               type="button"
               disabled={actionLoading}
-              onClick={() => triggerAction('cancel', item)}
-              title="Batalkan Booking"
-              className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg transition-colors disabled:opacity-50"
+              onClick={() => triggerAction('complete_return', item)}
+              title="Selesaikan Transaksi & Terima Unit (Deposit Otomatis Dikembalikan)"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs disabled:opacity-50"
             >
-              <Ban className="w-4 h-4" />
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Selesaikan & Terima Motor</span>
             </button>
           )}
 
@@ -495,17 +554,12 @@ export const Bookings: React.FC = () => {
   ];
 
   const statusTabs = [
-    { key: 'all', label: 'Semua', count: statusCounts.all ?? total },
-    { key: 'pending', label: 'Menunggu', count: statusCounts.pending ?? 0 },
+    { key: 'all', label: 'Semua Status', count: statusCounts.all ?? total },
+    { key: 'pending', label: 'Menunggu Persetujuan', count: (statusCounts.pending ?? 0) + ((statusCounts as any).expired ?? 0) },
     { key: 'confirmed', label: 'Dikonfirmasi', count: statusCounts.confirmed ?? 0 },
-    { key: 'active', label: 'Aktif Sewa', count: statusCounts.active ?? 0 },
-    {
-      key: 'return_requested',
-      label: 'Pengembalian Diajukan',
-      count: statusCounts.return_requested ?? 0,
-    },
+    { key: 'active', label: 'Sedang Disewa', count: (statusCounts.active ?? 0) + (statusCounts.return_requested ?? 0) },
     { key: 'completed', label: 'Selesai', count: statusCounts.completed ?? 0 },
-    { key: 'cancelled', label: 'Dibatalkan', count: statusCounts.cancelled ?? 0 },
+    { key: 'cancelled', label: 'Ditolak / Dibatalkan', count: statusCounts.cancelled ?? 0 },
   ];
 
   const returnRequestedCount = statusCounts.return_requested ?? 0;

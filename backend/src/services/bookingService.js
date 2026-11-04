@@ -500,18 +500,8 @@ class BookingService {
       let attempts = 0;
       const createdAt = clock.nowIso();
 
-      // Perhitungan expiresAt:
-      // - Tunai: waktu ambil + batas tunggu (cashExpireGraceHours, default 3 jam)
-      // - Online: waktu buat + bookingExpireMinutes (default 60 menit)
-      let expiresAt;
-      if (isCash) {
-        const cashGraceHours = Number(settings?.cashExpireGraceHours ?? 3);
-        const pickupHour = pickupTime || '09:00';
-        const pickupDateTime = new Date(`${startDate}T${pickupHour}:00+07:00`);
-        expiresAt = new Date(pickupDateTime.getTime() + cashGraceHours * 60 * 60 * 1000).toISOString();
-      } else {
-        expiresAt = new Date(clock.now().getTime() + bookingExpireMinutes * 60 * 1000).toISOString();
-      }
+      // Perhitungan expiresAt dinonaktifkan: pesanan tetap menunggu tindakan Admin
+      const expiresAt = null;
 
       const policySnapshot = {
         minRentalDays,

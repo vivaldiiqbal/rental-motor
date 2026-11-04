@@ -20,6 +20,7 @@ const clock = require('../../utils/clock');
 const { resolveBooking } = require('../../utils/bookingResolver');
 const { bookingCapabilities } = require('../../utils/bookingCapabilities');
 const eventBroadcaster = require('../realtime/eventBroadcaster');
+const returnService = require('./returnService');
 
 const adminBookingService = {
   async getBookings(filter = {}, paging = {}) {
@@ -272,9 +273,7 @@ const adminBookingService = {
 
   async cancelBooking(bookingId, payload = {}, actor = {}, reqInfo = {}) {
     actor = actor?.user || actor || {};
-    if (!payload.reason || !payload.reason.trim()) {
-      throw new AppError('Alasan pembatalan wajib diisi.', 'VALIDATION_ERROR', 400);
-    }
+    const reasonText = (typeof payload === 'string' ? payload : payload.reason) || 'Dibatalkan oleh admin';
 
     return transaction(async (tx) => {
       let booking = await resolveBooking(bookingId, tx);
@@ -292,7 +291,7 @@ const adminBookingService = {
         }
       }
 
-      if (!['pending', 'confirmed'].includes(booking.status)) {
+      if (!['pending', 'confirmed', 'expired'].includes(booking.status)) {
         throw new AppError(
           `Booking berstatus "${booking.status}" tidak dapat dibatalkan.`,
           'INVALID_STATUS_TRANSITION',
@@ -398,7 +397,7 @@ const adminBookingService = {
       timeline.push({
         status: 'cancelled',
         title: 'Booking Dibatalkan',
-        note: `Alasan: ${payload.reason.trim()}${refundAmount > 0 ? ` | Refund: Rp ${refundAmount.toLocaleString('id-ID')}` : ''}`,
+        note: `Alasan: ${reasonText.trim()}${refundAmount > 0 ? ` | Refund: Rp ${refundAmount.toLocaleString('id-ID')}` : ''}`,
         actor: actor.name || 'Admin',
         timestamp: new Date().toISOString(),
       });
@@ -408,7 +407,7 @@ const adminBookingService = {
         status: 'cancelled',
         cancelledBy: actor.role || 'admin',
         paymentStatus: refundAmount > 0 ? 'refunded' : booking.paymentStatus,
-        cancelReason: payload.reason.trim(),
+        cancelReason: reasonText.trim(),
         refundAmount,
         version: nextVersion,
         cancelledAt: new Date().toISOString(),
@@ -420,7 +419,7 @@ const adminBookingService = {
         const remaining = await tx.client.query(
           `SELECT 1 FROM bookings
            WHERE motorcycle_id = $1
-             AND status IN ('pending', 'confirmed', 'active')
+             AND (status = 'active' OR (status IN ('pending', 'confirmed') AND end_date >= CURRENT_DATE))
              AND id <> $2
            LIMIT 1`,
           [Number(booking.motorId), Number(booking.id)],
@@ -442,7 +441,7 @@ const adminBookingService = {
         entityId: booking.id,
         before: { status: booking.status, version: booking.version },
         after: { status: 'cancelled', version: nextVersion, refundAmount, cancelledBy: actor.role },
-        details: `Pembatalan booking #${booking.code}: ${payload.reason.trim()}`,
+        details: `Pembatalan booking #${booking.code}: ${reasonText.trim()}`,
         ip: reqInfo.ip,
         userAgent: reqInfo.userAgent,
       });
@@ -575,6 +574,185 @@ const adminBookingService = {
 
       return updated;
     });
+  },
+
+  /**
+   * Tahap 2: Setujui pembayaran & Serahkan Kunci dalam 1 langkah cepat.
+   * Status pembayaran -> PAID, handover_at -> now(), status booking -> ACTIVE, status motor -> RENTED.
+   */
+  async quickApproveAndHandover(bookingId, payload = {}, actor = {}, reqInfo = {}) {
+    const actorUser = actor?.user || actor || {};
+    return transaction(async (tx) => {
+      let booking = await resolveBooking(bookingId, tx);
+      if (!booking) {
+        throw new AppError('Transaksi booking tidak ditemukan.', 'BOOKING_NOT_FOUND', 404);
+      }
+
+      if (tx.driver === 'postgres' && tx.client) {
+        const locked = await tx.client.query('SELECT * FROM bookings WHERE id = $1 FOR UPDATE', [booking.id]);
+        if (locked.rows.length > 0) {
+          booking = {
+            ...booking,
+            status: locked.rows[0].status,
+            paidAt: locked.rows[0].paid_at || booking.paidAt,
+            paymentStatus: locked.rows[0].paid_at ? 'paid' : booking.paymentStatus,
+          };
+        }
+      }
+
+      if (booking.status === 'active') {
+        return booking;
+      }
+
+      if (!['pending', 'confirmed', 'expired'].includes(booking.status)) {
+        throw new AppError(
+          `Hanya booking berstatus "pending" atau "confirmed" yang dapat disetujui & diserahkan. Status saat ini: "${booking.status}".`,
+          'INVALID_STATUS_TRANSITION',
+          409,
+        );
+      }
+
+      const motor = await tx.motorRepo.findById(booking.motorId);
+      const nowIso = clock.nowIso();
+      const currentOdo = motor && typeof motor.odometer === 'number' ? motor.odometer : 0;
+      const odoStart = Number(payload.startOdometer !== undefined ? payload.startOdometer : (payload.odometerStart !== undefined ? payload.odometerStart : currentOdo));
+
+      const totalDays = Math.max(
+        1,
+        Number(booking.totalDays || booking.days || 0) ||
+          Math.round((new Date(booking.endDate).getTime() - new Date(booking.startDate).getTime()) / (1000 * 60 * 60 * 24)),
+      );
+      const dueAt = new Date(new Date(nowIso).getTime() + totalDays * 24 * 60 * 60 * 1000).toISOString();
+
+      // 1. Simpan pembayaran Lunas jika belum tercatat
+      const grandTotal = Number(booking.grandTotal || booking.total || booking.totalPrice || 0);
+      if (tx.paymentRepo && typeof tx.paymentRepo.create === 'function') {
+        await tx.paymentRepo.create({
+          bookingId: booking.id,
+          userId: booking.userId,
+          amount: grandTotal,
+          method: booking.paymentMethod || 'cash',
+          status: 'paid',
+          paidAt: nowIso,
+          gatewayRef: `APPROVE-${booking.code || booking.bookingCode}-${Date.now()}`,
+        });
+      }
+
+      // 2. Simpan handover record
+      if (tx.handoverRepo && typeof tx.handoverRepo.create === 'function') {
+        const existingH = await tx.handoverRepo.findByBookingId(booking.id);
+        if (!existingH) {
+          await tx.handoverRepo.create({
+            bookingId: booking.id,
+            startOdometer: odoStart,
+            initialFuel: payload.initialFuel || 'penuh',
+            conditionNotes: payload.conditionNotes || 'Disetujui cepat dan diserahkan oleh staf/admin',
+            originalDocsChecked: true,
+            depositReceived: true,
+            photos: Array.isArray(payload.photos) ? payload.photos : [],
+            handedBy: actorUser.name || 'Admin',
+            handedById: actorUser.id,
+            handedAt: nowIso,
+          });
+        }
+      }
+
+      // 3. Update status motor ke rented & update odometer
+      if (motor) {
+        await tx.motorRepo.update(motor.id, {
+          odometer: odoStart,
+          status: 'rented',
+        });
+        if (tx.driver === 'postgres' && tx.client) {
+          await tx.client.query(
+            "UPDATE motorcycles SET status = 'rented', odometer_km = $1, updated_at = now() WHERE id = $2",
+            [odoStart, Number(motor.id)],
+          );
+        }
+      }
+
+      // 4. Update status booking ke active, simpan handover_at & paid_at
+      const timeline = Array.isArray(booking.timeline) ? [...booking.timeline] : [];
+      timeline.push({
+        status: 'active',
+        title: 'Pemesanan Disetujui & Kunci Diserahkan',
+        note: `Disetujui & Kunci diserahkan oleh ${actorUser.name || 'Admin'}. Batas kembali (${totalDays}x24 jam): ${new Date(dueAt).toLocaleString('id-ID')}`,
+        actor: actorUser.name || 'Admin',
+        timestamp: nowIso,
+      });
+
+      const updated = await tx.bookingRepo.update(booking.id, {
+        status: 'active',
+        paymentStatus: 'paid',
+        paidAt: booking.paidAt || nowIso,
+        handoverAt: nowIso,
+        timeline,
+        version: Number(booking.version || 1) + 1,
+      });
+
+      if (tx.driver === 'postgres' && tx.client) {
+        await tx.client.query(
+          "UPDATE bookings SET status = 'active', paid_at = COALESCE(paid_at, $1), handover_at = $1, expires_at = NULL, updated_at = now() WHERE id = $2",
+          [nowIso, booking.id],
+        );
+      }
+
+      await recordAudit(
+        tx.auditRepo,
+        { ...reqInfo, user: actorUser },
+        'APPROVE_AND_HANDOVER_BOOKING',
+        'Booking',
+        booking.id,
+        booking,
+        updated,
+      );
+
+      await eventBroadcaster.publish(tx, {
+        type: 'booking.updated',
+        entityId: String(booking.id),
+        userId: String(booking.userId),
+        payload: { id: booking.id, status: 'active', handoverAt: nowIso },
+      });
+
+      await eventBroadcaster.publish(tx, {
+        type: 'motor.availability.changed',
+        entityId: String(booking.motorId),
+        userId: null,
+        payload: { motorId: booking.motorId, action: 'rented' },
+      });
+
+      return {
+        ...updated,
+        status: 'active',
+        paymentStatus: 'paid',
+        handoverAt: nowIso,
+        dueAt,
+      };
+    });
+  },
+
+  /**
+   * Tahap 2: Tolak pesanan dan otomatis bebaskan slot unit motor ke 'active' (tersedia).
+   */
+  async rejectBooking(bookingId, payload = {}, actor = {}, reqInfo = {}) {
+    const reason = (typeof payload === 'string' ? payload : payload.reason) || 'Ditolak oleh admin';
+    return this.cancelBooking(bookingId, { reason }, actor, reqInfo);
+  },
+
+  /**
+   * Tahap 4: Pengembalian motor & sewa selesai dalam 1 klik cepat.
+   * Mencatat returned_at, deposit Rp 200.000 dikembalikan, status -> completed, motor -> active.
+   */
+  async completeReturn(bookingId, payload = {}, actor = {}, reqInfo = {}) {
+    return returnService.returnMotor(
+      bookingId,
+      {
+        ...payload,
+        confirmDepositRefund: true,
+      },
+      actor,
+      reqInfo,
+    );
   },
 
   async exportBookingsCsv(filter = {}) {
