@@ -4,7 +4,6 @@ import {
   LayoutDashboard,
   CalendarCheck,
   FileCheck2,
-  CalendarDays,
   Bike,
   Users,
   Tag,
@@ -156,13 +155,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   {pendingDocsCount}
                 </span>
               )}
-            </NavLink>
-
-            <NavLink to="/admin/calendar" className={navItemClass} onClick={onClose}>
-              <div className="flex items-center gap-3">
-                <CalendarDays className="w-4 h-4 text-primary-200" />
-                <span>Kalender Sewa</span>
-              </div>
             </NavLink>
 
             <NavLink to="/admin/gps" className={navItemClass} onClick={onClose}>
