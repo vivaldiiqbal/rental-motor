@@ -234,7 +234,7 @@ export const Dashboard: React.FC = () => {
           change={`${stats?.rentedMotors || 0} dari ${stats?.totalMotors || 0} unit`}
           subtitle="Rata-rata utilisasi armada"
           color="primary"
-          onClick={() => navigate('/admin/calendar')}
+          onClick={() => navigate('/admin/motors')}
         />
       </div>
 

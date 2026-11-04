@@ -394,14 +394,6 @@ export const RentalHistory: React.FC = () => {
                 <Edit2 className="w-3.5 h-3.5 text-primary-900" />
                 <span>Edit Data Motor</span>
               </Link>
-
-              <Link
-                to="/admin/calendar"
-                className="inline-flex items-center gap-1.5 px-3 py-2 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold rounded-xl transition-colors border border-white/20"
-              >
-                <CalendarDays className="w-3.5 h-3.5" />
-                <span>Kalender Sewa</span>
-              </Link>
             </div>
           </div>
         </div>

@@ -46,20 +46,26 @@ const returnRepo = {
     try {
       const bookingId = Number(payload.bookingId);
       const odometerEnd = Number(payload.odometerEnd ?? payload.endOdometer ?? 0);
-      const fuelEnd = String(payload.fuelEnd ?? payload.finalFuel ?? 'penuh').toLowerCase();
-      const notes = payload.notes ?? '';
+      const rawFuel = String(payload.fuelEnd ?? payload.finalFuel ?? 'penuh').toLowerCase().trim();
+      const fuelEnd = ['empty', 'quarter', 'half', 'three_quarter', 'full', 'kosong', '1/4', '1/2', '3/4', 'penuh'].includes(rawFuel)
+        ? rawFuel
+        : (rawFuel.includes('kosong') || rawFuel.includes('empty') ? 'kosong' : 'penuh');
+      const notes = payload.notes ?? 'Unit diterima kembali dan sewa selesai';
       const returnedAt = payload.returnedAt ?? payload.actualReturn ?? new Date();
-      const lateMinutes = Math.max(0, Number(payload.lateMinutes ?? 0));
-      const lateFee = Math.max(0, Number(payload.lateFee ?? 0));
-      const damageFee = Math.max(0, Number(payload.damageFee ?? 0));
-      const otherFee = Math.max(0, Number(payload.otherFee ?? 0));
-      const depositSnapshot = Math.max(0, Number(payload.depositSnapshot ?? payload.deposit ?? 200000));
+      const lateMinutes = Math.max(0, Math.round(Number(payload.lateMinutes ?? 0)));
+      const lateFee = Math.max(0, Math.round(Number(payload.lateFee ?? 0)));
+      const damageFee = Math.max(0, Math.round(Number(payload.damageFee ?? 0)));
+      const otherFee = Math.max(0, Math.round(Number(payload.otherFee ?? 0)));
       const totalDeductions = lateFee + damageFee + otherFee;
+      const depositSnapshot = Math.max(
+        0,
+        Math.round(Number(payload.depositSnapshot ?? payload.deposit ?? 200000))
+      );
       const depositRefund = payload.depositRefund !== undefined
-        ? Math.max(0, Number(payload.depositRefund))
+        ? Math.max(0, Math.round(Number(payload.depositRefund)))
         : Math.max(0, depositSnapshot - totalDeductions);
       const amountDue = payload.amountDue !== undefined
-        ? Math.max(0, Number(payload.amountDue))
+        ? Math.max(0, Math.round(Number(payload.amountDue)))
         : Math.max(0, totalDeductions - depositSnapshot);
 
       const depositRefundedAt = payload.depositRefundedAt || null;

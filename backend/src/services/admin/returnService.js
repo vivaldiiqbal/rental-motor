@@ -5,6 +5,23 @@ const clock = require('../../utils/clock');
 const { resolveBooking } = require('../../utils/bookingResolver');
 const eventBroadcaster = require('../realtime/eventBroadcaster');
 
+const ALLOWED_FUEL = ['empty', 'quarter', 'half', 'three_quarter', 'full', 'kosong', '1/4', '1/2', '3/4', 'penuh'];
+
+/**
+ * Menormalkan input level BBM bebas (mis. "Penuh (F)", "Setengah") ke nilai yang
+ * diterima CHECK chk_returns_fuel_end. Input kosong/tidak dikenal dianggap 'penuh'.
+ */
+function normalizeFuel(raw) {
+  const v = String(raw || '').toLowerCase().trim();
+  if (!v) return 'penuh';
+  if (ALLOWED_FUEL.includes(v)) return v;
+  if (v.includes('3/4') || v.includes('tiga')) return '3/4';
+  if (v.includes('1/2') || v.includes('setengah') || v.includes('half')) return '1/2';
+  if (v.includes('1/4') || v.includes('seperempat') || v.includes('quarter')) return '1/4';
+  if (v.includes('kosong') || v.includes('empty') || v.includes('(e)')) return 'kosong';
+  return 'penuh';
+}
+
 const returnService = {
   async calculateReturnSummary(booking, returnedAtStr, damageFee = 0, otherFee = 0) {
     const snapshot = booking.policySnapshot || {};
@@ -57,7 +74,9 @@ const returnService = {
       lateFee = Math.round(fullDays * dailyPrice + remainingFee);
     }
 
-    const deposit = Number(booking.deposit) || 200000;
+    // Deposit diambil langsung dari data asli booking (bukan hardcoded)
+    const rawDeposit = Number(booking.deposit !== undefined ? booking.deposit : (booking.deposit_snapshot !== undefined ? booking.deposit_snapshot : 200000));
+    const deposit = Number.isFinite(rawDeposit) && rawDeposit >= 0 ? Math.round(rawDeposit) : 200000;
     const dFee = Math.max(0, Math.floor(Number(damageFee) || 0));
     const oFee = Math.max(0, Math.floor(Number(otherFee) || 0));
 
@@ -81,6 +100,32 @@ const returnService = {
       depositRefund,
       amountDue,
     };
+  },
+
+  /**
+   * Pratinjau pengembalian "saat ini" (read-only) untuk modal konfirmasi admin.
+   * Menggunakan rumus yang sama persis dengan returnMotor sehingga angka di layar
+   * selalu sama dengan yang dicatat saat konfirmasi.
+   */
+  async previewReturn(bookingId) {
+    const { bookingRepo } = require('../../repositories');
+    const booking = await resolveBooking(bookingId, { bookingRepo });
+    if (!booking) {
+      throw new AppError('Transaksi booking tidak ditemukan.', 'BOOKING_NOT_FOUND', 404);
+    }
+    if (booking.status !== 'active' && booking.status !== 'return_requested') {
+      throw new AppError(
+        'Pratinjau pengembalian hanya tersedia untuk sewa yang sedang berjalan.',
+        'INVALID_STATUS_TRANSITION',
+        409,
+      );
+    }
+    const summary = await this.calculateReturnSummary(booking, clock.nowIso());
+    const addons = (booking.selectedAddOns || booking.addonsList || booking.addons || []).map((a) => ({
+      name: a.name || a.label || 'Perlengkapan',
+      quantity: Number(a.quantity || a.qty || 1),
+    }));
+    return { ...summary, addons, pricePerDay: Number(booking.pricePerDay) || 0 };
   },
 
   async returnMotor(bookingId, payload = {}, actor = {}, reqInfo = {}) {
@@ -107,9 +152,9 @@ const returnService = {
         await tx.client.query('SELECT id FROM motorcycles WHERE id = $1 FOR UPDATE', [Number(booking.motorId)]);
       }
 
-      if (booking.status !== 'active' && booking.status !== 'return_requested') {
+      if (!['active', 'return_requested', 'confirmed'].includes(booking.status)) {
         throw new AppError(
-          `Pengembalian motor hanya dapat dilakukan untuk booking yang berstatus "active" atau "return_requested". Status saat ini: "${booking.status}".`,
+          `Pengembalian motor hanya dapat dilakukan untuk booking yang berstatus "active", "return_requested", atau "confirmed". Status saat ini: "${booking.status}".`,
           'INVALID_STATUS_TRANSITION',
           400,
         );
@@ -133,37 +178,26 @@ const returnService = {
         if (parsed > new Date(now.getTime() + 5 * 60 * 1000)) {
           throw new AppError('Waktu pengembalian tidak boleh berada di masa depan.', 'VALIDATION_ERROR', 400);
         }
-        if (booking.handedAt && parsed < new Date(booking.handedAt)) {
-          throw new AppError('Waktu pengembalian tidak boleh sebelum waktu serah terima unit.', 'VALIDATION_ERROR', 400);
-        }
         returnedAt = parsed;
       }
-
-      // Validasi odometer akhir (default ke odometer awal jika tidak diisi pada aksi cepat)
-      const motorBefore = await tx.motorRepo.findById(booking.motorId);
-      const startOdo = Number(booking.startOdometer || (motorBefore ? motorBefore.odometer : 0) || 0);
-      let odometerEnd = Number(payload.odometerEnd !== undefined ? payload.odometerEnd : payload.endOdometer);
-      if (isNaN(odometerEnd) || odometerEnd < 0) {
-        odometerEnd = startOdo;
+      // Pengembalian bebas kapan saja (bahkan 1 menit setelah serah terima atau masih sisa 23 jam)
+      const handedRef = booking.handoverAt || booking.handedAt;
+      if (handedRef && returnedAt < new Date(handedRef)) {
+        returnedAt = new Date(handedRef);
       }
 
-      if (startOdo > 0 && odometerEnd < startOdo) {
-        throw new AppError(
-          `Odometer akhir (${odometerEnd} km) tidak boleh lebih kecil dari odometer awal saat serah terima (${startOdo} km).`,
-          'ODOMETER_INVALID',
-          400,
-        );
+      // Odometer akhir otomatis aman (default ke odometer awal jika kosong/lebih kecil)
+      const motorBefore = await tx.motorRepo.findById(booking.motorId);
+      const startOdo = Number(booking.startOdometer || (motorBefore ? (motorBefore.odometer || motorBefore.odometerKm) : 0) || 0);
+      let odometerEnd = Number(payload.odometerEnd !== undefined ? payload.odometerEnd : payload.endOdometer);
+      if (isNaN(odometerEnd) || odometerEnd < startOdo) {
+        odometerEnd = startOdo;
       }
 
       const damageFee = Math.max(0, Math.floor(Number(payload.damageFee) || 0));
       const otherFee = Math.max(0, Math.floor(Number(payload.otherFee) || 0));
       const notes = payload.notes || 'Unit diterima kembali dan sewa selesai';
-      const rawFuel = String(payload.fuelEnd || payload.finalFuel || 'penuh').toLowerCase().trim();
-      const fuelEnd = rawFuel.includes('penuh') || rawFuel.includes('full')
-        ? 'penuh'
-        : rawFuel.includes('kosong') || rawFuel.includes('empty')
-        ? 'kosong'
-        : rawFuel;
+      const fuelEnd = normalizeFuel(payload.fuelEnd || payload.finalFuel);
 
       // Hitung ringkasan denda dan deposit
       const summary = await this.calculateReturnSummary(
@@ -187,6 +221,9 @@ const returnService = {
         damageFee: summary.damageFee,
         otherFee: summary.otherFee,
         totalDeduction: summary.totalDeduction,
+        // Snapshot deposit WAJIB sama dengan deposit booking agar konsisten dengan
+        // CHECK chk_returns_consistency_refund / chk_returns_consistency_amount_due.
+        depositSnapshot: summary.deposit,
         depositRefund: summary.depositRefund,
         amountDue: summary.amountDue,
         depositRefundedAt: shouldConfirmDepositRefund ? summary.actualReturn : null,
@@ -251,6 +288,13 @@ const returnService = {
         timeline,
         version: Number(booking.version || 1) + 1,
       });
+
+      if (tx.driver === 'postgres' && tx.client) {
+        await tx.client.query(
+          "UPDATE bookings SET status = 'completed', updated_at = now() WHERE id = $1",
+          [Number(booking.id)],
+        );
+      }
 
       // 4. Catat log audit
       await recordAudit(tx.auditRepo, {

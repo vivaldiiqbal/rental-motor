@@ -70,6 +70,11 @@ const adminBookingController = {
     });
   },
 
+  async returnPreview(req, res) {
+    const result = await returnService.previewReturn(req.params.id);
+    return successResponse(res, { data: result });
+  },
+
   async returnMotor(req, res) {
     const reqInfo = { ip: req.ip, userAgent: req.headers?.['user-agent'] };
     const result = await returnService.returnMotor(req.params.id, req.body, req.user, reqInfo);

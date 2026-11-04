@@ -83,22 +83,6 @@ export const BookingDetail: React.FC = () => {
 
   // Modal 3: Pengembalian Motor (Return)
   const [returnModalOpen, setReturnModalOpen] = useState(false);
-  const [returnTime, setReturnTime] = useState<string>(() => {
-    const d = new Date();
-    // format as YYYY-MM-DDTHH:mm
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    const hours = String(d.getHours()).padStart(2, '0');
-    const minutes = String(d.getMinutes()).padStart(2, '0');
-    return `${year}-${month}-${day}T${hours}:${minutes}`;
-  });
-  const [endOdo, setEndOdo] = useState<number>(10000);
-  const [endFuel, setEndFuel] = useState<string>('Penuh (F)');
-  const [returnNotes, setReturnNotes] = useState('Unit diterima lengkap.');
-  const [damageFee, setDamageFee] = useState<number>(0);
-  const [otherFee, setOtherFee] = useState<number>(0);
-  const [confirmDepositRefund, setConfirmDepositRefund] = useState<boolean>(true);
 
   // Modal 4: Pembatalan Booking
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
@@ -120,7 +104,6 @@ export const BookingDetail: React.FC = () => {
       setBooking(data);
       setPaymentAmount(data.total ?? data.totalPrice ?? 0);
       setStartOdo(data.startOdometer || 12000);
-      setEndOdo(data.endOdometer || (data.startOdometer ? data.startOdometer + 50 : 12050));
 
       if (data.userId) {
         try {
@@ -254,14 +237,14 @@ export const BookingDetail: React.FC = () => {
     try {
       return adminApi.calculateReturnSummary(
         booking,
-        new Date(returnTime).toISOString(),
-        Number(damageFee) || 0,
-        Number(otherFee) || 0,
+        new Date().toISOString(),
+        0,
+        0,
       );
     } catch {
       return null;
     }
-  }, [booking, returnModalOpen, returnTime, damageFee, otherFee]);
+  }, [booking, returnModalOpen]);
 
   const handleAddNote = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -332,32 +315,26 @@ export const BookingDetail: React.FC = () => {
     }
   };
 
-  // Submit Return
-  const handleReturnSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  // Submit Return (1-Klik Ramah Awam)
+  const handleReturnSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (actionLoading || !booking) return;
-
-    if (booking.startOdometer && Number(endOdo) < booking.startOdometer) {
-      toast.error(`Odometer akhir (${endOdo} km) tidak boleh kurang dari awal (${booking.startOdometer} km).`, { id: 'booking-action-toast' });
-      return;
-    }
 
     setActionLoading(true);
     try {
-      const updated = await adminApi.returnMotor(booking.id, {
-        returnTime: new Date(returnTime).toISOString(),
-        endOdometer: Number(endOdo),
-        finalFuel: endFuel,
-        notes: returnNotes,
-        damageFee: Number(damageFee) || 0,
-        otherFee: Number(otherFee) || 0,
-        confirmDepositRefund,
+      const updated = await adminApi.completeReturn(booking.id, {
+        confirmDepositRefund: true,
       });
       setBooking(updated);
       setReturnModalOpen(false);
-      toast.success('Pengembalian motor berhasil dicatat dan status sewa Selesai.', { id: 'booking-action-toast' });
+      toast.success(`Pengembalian unit ${booking.motorName} berhasil dicatat & deposit telah dikembalikan. Transaksi sewa selesai!`, {
+        id: 'booking-action-toast',
+      });
+      fetchDetail();
     } catch (err: any) {
-      toast.error(err.message || 'Gagal mencatat pengembalian motor.', { id: 'booking-action-toast' });
+      toast.error(err?.response?.data?.error?.message || err?.response?.data?.message || err?.message || 'Gagal memproses pengembalian motor.', {
+        id: 'booking-action-toast',
+      });
     } finally {
       setActionLoading(false);
     }
@@ -406,22 +383,6 @@ export const BookingDetail: React.FC = () => {
       toast.success('Pesanan berhasil ditolak. Slot motor kembali tersedia.', { id: 'booking-action-toast' });
     } catch (err: any) {
       toast.error(err?.response?.data?.error?.message || err?.message || 'Gagal menolak pesanan.', { id: 'booking-action-toast' });
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  // Quick Complete Return
-  const handleQuickCompleteReturn = async () => {
-    if (actionLoading || !booking) return;
-    if (!window.confirm(`Konfirmasi pengembalian unit ${booking.motorName}? Uang deposit Rp 200.000 akan ditandai telah dikembalikan ke pelanggan dan transaksi selesai.`)) return;
-    setActionLoading(true);
-    try {
-      const updated = await adminApi.completeReturn(booking.id);
-      setBooking(updated);
-      toast.success('Pengembalian unit berhasil dicatat & deposit telah dikembalikan. Sewa selesai!', { id: 'booking-action-toast' });
-    } catch (err: any) {
-      toast.error(err?.response?.data?.error?.message || err?.message || 'Gagal menyelesaikan pengembalian motor.', { id: 'booking-action-toast' });
     } finally {
       setActionLoading(false);
     }
@@ -579,30 +540,19 @@ export const BookingDetail: React.FC = () => {
             </div>
           )}
 
-          {/* Status: ACTIVE atau RETURN_REQUESTED -> Selesaikan & Terima Motor */}
+          {/* Status: ACTIVE atau RETURN_REQUESTED -> 1 Tombol Utama Jelas */}
           {(booking.status === 'active' || booking.status === 'return_requested') &&
             can('bookings:return') && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={actionLoading}
-                  onClick={handleQuickCompleteReturn}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs disabled:opacity-50 transition-colors"
-                  title="Selesaikan Sewa & Terima Motor (Deposit Rp 200.000 Otomatis Dikembalikan)"
-                >
-                  <RotateCcw className="w-4 h-4" />
-                  Selesaikan & Terima Motor
-                </button>
-                <button
-                  type="button"
-                  disabled={actionLoading}
-                  onClick={() => setReturnModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl text-xs font-semibold shadow-xs disabled:opacity-50 transition-colors"
-                  title="Buka Formulir Detail Odometer & Kerusakan"
-                >
-                  Detail Pengembalian
-                </button>
-              </div>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={() => setReturnModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-xs disabled:opacity-50 transition-colors"
+                title="Terima Motor & Selesaikan Sewa"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Terima Motor & Selesaikan Sewa
+              </button>
             )}
 
           {/* Status: COMPLETED */}
@@ -701,10 +651,10 @@ export const BookingDetail: React.FC = () => {
               <button
                 type="button"
                 onClick={() => setReturnModalOpen(true)}
-                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-purple-700 hover:bg-purple-800 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
               >
                 <CheckCircle2 className="w-4 h-4" />
-                Verifikasi Pengembalian & Selesaikan Sewa
+                Terima Motor & Selesaikan Sewa
               </button>
             )}
           </div>
@@ -1413,204 +1363,167 @@ export const BookingDetail: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 3: Pengembalian Motor (Return) */}
+      {/* MODAL 3: Penerimaan Motor & Pengembalian Deposit Ramah Awam (1-Klik) */}
       {returnModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-              <div>
-                <h3 className="text-base font-bold text-gray-900">Formulir Pengembalian Motor</h3>
-                <p className="text-[11px] text-gray-500">Unit: {booking.motorName}</p>
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center shrink-0">
+                  <RotateCcw className="w-5 h-5 text-emerald-700" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-gray-900">Penerimaan Motor & Selesai</h3>
+                  <p className="text-xs text-gray-500">Konfirmasi pengembalian unit & pengembalian deposit</p>
+                </div>
               </div>
               <button
                 type="button"
                 onClick={() => setReturnModalOpen(false)}
-                className="p-1 text-gray-400 hover:text-gray-600 rounded-lg"
+                className="p-1.5 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleReturnSubmit} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1">Waktu Pengembalian Fisik</label>
-                <input
-                  type="datetime-local"
-                  value={returnTime}
-                  onChange={(e) => setReturnTime(e.target.value)}
-                  className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-900 font-semibold"
-                  required
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-3.5 text-xs">
+              {/* 1. Unit Motor & Penyewa */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 flex items-center justify-between gap-3">
                 <div>
-                  <label className="block font-semibold text-gray-700 mb-1">
-                    Odometer Akhir (Awal: {booking.startOdometer || 0} km)
-                  </label>
-                  <input
-                    type="number"
-                    value={endOdo}
-                    onChange={(e) => setEndOdo(Number(e.target.value))}
-                    min={booking.startOdometer || 0}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-900 font-mono font-bold"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Bensin Akhir</label>
-                  <select
-                    value={endFuel}
-                    onChange={(e) => setEndFuel(e.target.value)}
-                    className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-900 font-semibold"
-                  >
-                    <option value="Penuh (F)">Penuh (Full)</option>
-                    <option value="3/4">3/4 Tangki</option>
-                    <option value="1/2">1/2 Tangki</option>
-                    <option value="1/4">1/4 Tangki</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Biaya Kerusakan (Opsional)</label>
-                  <input
-                    type="number"
-                    value={damageFee}
-                    onChange={(e) => setDamageFee(Number(e.target.value))}
-                    min={0}
-                    step={10000}
-                    placeholder="0"
-                    className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-900 font-bold"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Biaya Lain-lain (Opsional)</label>
-                  <input
-                    type="number"
-                    value={otherFee}
-                    onChange={(e) => setOtherFee(Number(e.target.value))}
-                    min={0}
-                    step={10000}
-                    placeholder="0"
-                    className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-900 font-bold"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1">Catatan Kondisi Unit Saat Kembali</label>
-                <textarea
-                  rows={2}
-                  value={returnNotes}
-                  onChange={(e) => setReturnNotes(e.target.value)}
-                  placeholder="Catatan kebersihan bodi, helm lengkap, dsb."
-                  className="w-full p-2.5 bg-gray-50 border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary-900"
-                />
-              </div>
-
-              {/* Verifikasi Pengembalian Layanan Tambahan (Add-ons) */}
-              {booking.addonsList && booking.addonsList.length > 0 && (
-                <div className="bg-amber-50/80 border border-amber-200 rounded-xl p-3 space-y-1.5">
-                  <span className="font-bold text-amber-900 block text-[11px]">
-                    📦 Verifikasi Pengembalian Perlengkapan Tambahan (Add-ons):
+                  <span className="text-[11px] text-gray-500 block">Unit Motor</span>
+                  <span className="text-sm font-bold text-gray-900">
+                    {booking.motorName} <span className="font-mono text-gray-500 font-semibold">({(booking as any).plate || (booking as any).motorPlate || '-'})</span>
                   </span>
-                  <p className="text-[11px] text-amber-700">Pastikan seluruh item berikut telah diterima kembali:</p>
-                  <ul className="space-y-1 pl-1">
-                    {booking.addonsList.map((addon: any, idx: number) => (
-                      <li key={idx} className="flex items-center gap-2 text-amber-800 text-xs">
-                        <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
-                        <span>
-                          <strong>{addon.quantity || 1}x {addon.name}</strong> (Kembali lengkap)
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
                 </div>
-              )}
+                <div className="text-right">
+                  <span className="text-[11px] text-gray-500 block">Penyewa</span>
+                  <span className="text-sm font-bold text-gray-900">
+                    {booking.renter?.name || booking.userName}
+                  </span>
+                </div>
+              </div>
 
-              {/* Live Return Financial Calculation Summary */}
-              {liveReturnCalc && (
-                <div className="bg-gray-50 border border-gray-200 rounded-xl p-3.5 space-y-2 text-xs">
-                  <div className="font-bold text-gray-900 border-b border-gray-200 pb-1.5 flex justify-between">
-                    <span>Ringkasan Pengembalian Deposit</span>
-                    <span>Deposit: {formatPrice(liveReturnCalc.deposit)}</span>
+              {/* 2. Perlengkapan Tambahan (Add-ons) */}
+              <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 space-y-2">
+                <div className="flex items-center justify-between text-amber-950 font-bold text-xs">
+                  <span>📦 Perlengkapan yang Ikut Diterima Kembali:</span>
+                  <span className="text-[11px] font-normal text-amber-800">Cek fisik unit</span>
+                </div>
+                {booking.addonsList && booking.addonsList.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5 pt-1">
+                    {booking.addonsList.map((addon: any, idx: number) => (
+                      <span
+                        key={idx}
+                        className="inline-flex items-center gap-1.5 bg-white border border-amber-300 text-amber-950 px-2.5 py-1 rounded-lg text-xs font-semibold shadow-2xs"
+                      >
+                        <span className="w-2 h-2 rounded-full bg-emerald-600"></span>
+                        {addon.quantity || 1}x {addon.name}
+                      </span>
+                    ))}
                   </div>
+                ) : (
+                  <p className="text-xs text-amber-800">
+                    ✓ Standar unit motor (1 helm bawaan & kunci kontak).
+                  </p>
+                )}
+              </div>
 
-                  {liveReturnCalc.isOverdue && (
-                    <div className="flex justify-between text-rose-700 font-medium">
-                      <span>Denda Keterlambatan ({liveReturnCalc.lateHours} jam)</span>
-                      <span>{formatPrice(liveReturnCalc.lateFee)}</span>
-                    </div>
-                  )}
-
-                  {liveReturnCalc.damageFee > 0 && (
-                    <div className="flex justify-between text-rose-700 font-medium">
-                      <span>Biaya Kerusakan</span>
-                      <span>{formatPrice(liveReturnCalc.damageFee)}</span>
-                    </div>
-                  )}
-
-                  {liveReturnCalc.otherFee > 0 && (
-                    <div className="flex justify-between text-rose-700 font-medium">
-                      <span>Biaya Lainnya</span>
-                      <span>{formatPrice(liveReturnCalc.otherFee)}</span>
-                    </div>
-                  )}
-
-                  <div className="pt-2 border-t border-gray-200 flex justify-between items-center text-sm">
-                    {liveReturnCalc.refundDeposit > 0 ? (
+              {/* 3. Status Waktu & Argo Denda Billing Warnet */}
+              <div
+                className={`rounded-xl border p-3.5 space-y-1.5 ${
+                  liveReturnCalc?.isOverdue
+                    ? 'bg-rose-50/80 border-rose-200 text-rose-950'
+                    : 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold flex items-center gap-1.5">
+                    {liveReturnCalc?.isOverdue ? (
                       <>
-                        <span className="font-bold text-emerald-800">Uang Deposit Dikembalikan:</span>
-                        <span className="font-black text-emerald-700 text-base">
-                          {formatPrice(liveReturnCalc.refundDeposit)}
-                        </span>
+                        <AlertTriangle className="w-4 h-4 text-rose-600" />
+                        <span>Status Waktu: Terlambat</span>
                       </>
                     ) : (
                       <>
-                        <span className="font-bold text-rose-800">Kurang Bayar oleh Penyewa:</span>
-                        <span className="font-black text-rose-700 text-base">
-                          {formatPrice(liveReturnCalc.underpayment)}
-                        </span>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>Status Waktu: Tepat Waktu</span>
                       </>
                     )}
-                  </div>
-
-                  <div className="pt-2 border-t border-gray-200">
-                    <label className="flex items-start gap-2.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={confirmDepositRefund}
-                        onChange={(e) => setConfirmDepositRefund(e.target.checked)}
-                        className="mt-0.5 rounded text-emerald-700 focus:ring-emerald-600"
-                      />
-                      <span className="text-gray-800 leading-tight">
-                        <strong>Konfirmasi Pengembalian Deposit Jaminan ({formatPrice(liveReturnCalc.deposit || 200000)}):</strong>{' '}
-                        Tandai bahwa pengembalian deposit jaminan kepada pelanggan telah dikonfirmasi dan diselesaikan.
-                      </span>
-                    </label>
-                  </div>
+                  </span>
+                  <span
+                    className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                      liveReturnCalc?.isOverdue
+                        ? 'bg-rose-600 text-white'
+                        : 'bg-emerald-600 text-white'
+                    }`}
+                  >
+                    {liveReturnCalc?.isOverdue
+                      ? `Terlambat ${liveReturnCalc.lateHours} Jam`
+                      : 'Bebas Denda (Rp 0)'}
+                  </span>
                 </div>
-              )}
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setReturnModalOpen(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 font-semibold"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={actionLoading}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold disabled:opacity-50"
-                >
-                  {actionLoading ? 'Menyimpan...' : 'Verifikasi Pengembalian & Selesaikan Sewa'}
-                </button>
+                <div className="flex justify-between items-center pt-1 text-xs">
+                  <span className="text-gray-600">Total Denda Keterlambatan:</span>
+                  <span
+                    className={`font-mono font-bold ${
+                      liveReturnCalc?.isOverdue ? 'text-rose-700' : 'text-emerald-700'
+                    }`}
+                  >
+                    {liveReturnCalc?.isOverdue
+                      ? `${formatPrice(liveReturnCalc.lateFee)} (${liveReturnCalc.lateHours} jam @ ${formatPrice(liveReturnCalc.hourlyLateFee || Math.round((booking.pricePerDay || 0) * 0.1))}/jam)`
+                      : 'Rp 0'}
+                  </span>
+                </div>
               </div>
-            </form>
+
+              {/* 4. Ringkasan Uang Deposit */}
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 space-y-2">
+                <div className="flex justify-between text-gray-700">
+                  <span>Deposit Jaminan Awal:</span>
+                  <span className="font-semibold text-gray-900">
+                    {formatPrice(booking.deposit || 200000)}
+                  </span>
+                </div>
+                {(liveReturnCalc?.lateFee || 0) > 0 && (
+                  <div className="flex justify-between text-rose-700">
+                    <span>Potongan Denda Keterlambatan:</span>
+                    <span className="font-semibold">- {formatPrice(liveReturnCalc?.lateFee || 0)}</span>
+                  </div>
+                )}
+                <div className="pt-2 border-t border-gray-200 flex justify-between items-center">
+                  <span className="font-bold text-gray-900 text-sm">
+                    Total Deposit Dikembalikan ke Pelanggan:
+                  </span>
+                  <span className="font-mono font-black text-emerald-600 text-lg">
+                    {formatPrice(
+                      liveReturnCalc
+                        ? liveReturnCalc.refundDeposit
+                        : (booking.deposit || 200000)
+                    )}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 5. Tombol Konfirmasi 1-Klik */}
+            <div className="pt-2 flex items-center justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setReturnModalOpen(false)}
+                className="px-4 py-2.5 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 text-xs font-semibold transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={actionLoading}
+                onClick={handleReturnSubmit}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all disabled:opacity-50"
+              >
+                <Check className="w-4 h-4" />
+                <span>{actionLoading ? 'Memproses...' : 'Konfirmasi Terima Motor & Selesai'}</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

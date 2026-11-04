@@ -967,6 +967,7 @@ export const adminApi = {
       notes?: string;
       damageFee?: number;
       otherFee?: number;
+      confirmDepositRefund?: boolean;
     },
   ): Promise<AdminBooking> {
     if (!isMock) {
@@ -1108,7 +1109,6 @@ export const adminApi = {
     otherFee: number = 0,
   ) {
     const store = getStoredData();
-    const tolerance = store.settings.lateFeeToleranceMinutes ?? 120;
     const latePercent = store.settings.lateFeePercentPerHour ?? 10;
 
     const pickupTime = booking.pickupTime || '09:00';
@@ -1136,18 +1136,17 @@ export const adminApi = {
     let isOverdue = false;
 
     const motor = store.motors.find((m) => m.id === booking.motorId);
-    const dailyPrice = motor?.pricePerDay || 100000;
+    const dailyPrice = Number(booking.pricePerDay || motor?.pricePerDay || 100000);
     const hourlyFee = Math.round(dailyPrice * (latePercent / 100));
 
-    if (diffMinutes > tolerance) {
+    // Billing Warnet: Denda per jam berjalan begitu melewati batas waktu sewa
+    if (diffMinutes > 0) {
       isOverdue = true;
       lateHours = Math.ceil(diffMinutes / 60);
-      const fullDays = Math.floor(lateHours / 24);
-      const remHours = lateHours % 24;
-      lateFee = Math.round(fullDays * dailyPrice + Math.min(dailyPrice, remHours * hourlyFee));
+      lateFee = lateHours * hourlyFee;
     }
 
-    const deposit = booking.deposit || 200000;
+    const deposit = Number(booking.deposit !== undefined ? booking.deposit : 200000);
     const totalDeduction = lateFee + damageFee + otherFee;
     const refundDeposit = Math.max(0, deposit - totalDeduction);
     const underpayment = Math.max(0, totalDeduction - deposit);

@@ -220,10 +220,10 @@ export const Bookings: React.FC = () => {
           isOpen: true,
           type,
           booking,
-          title: 'Selesaikan & Terima Motor',
-          message: `Konfirmasi pengembalian unit ${booking.motorName} dari ${booking.renter?.name || booking.userName}? Uang deposit jaminan Rp 200.000 akan ditandai telah dikembalikan ke pelanggan, transaksi menjadi Selesai, dan unit motor langsung kembali TERSEDIA di katalog.`,
+          title: 'Terima Motor & Selesaikan Sewa',
+          message: `Konfirmasi pengembalian unit ${booking.motorName} dari ${booking.renter?.name || booking.userName}? Uang deposit jaminan ${formatPrice(booking.deposit || 200000)} akan dikembalikan ke pelanggan, status menjadi Selesai, dan unit motor langsung kembali TERSEDIA di katalog.`,
           variant: 'primary',
-          confirmText: 'Selesaikan & Terima Motor',
+          confirmText: 'Konfirmasi Terima Motor & Selesai',
         });
         break;
 
@@ -525,17 +525,17 @@ export const Bookings: React.FC = () => {
             </>
           )}
 
-          {/* Tahap 3 & 4: Sedang Disewa -> Selesaikan & Terima Motor */}
+          {/* Tahap 3 & 4: Sedang Disewa -> Terima Motor & Selesaikan Sewa */}
           {(item.status === 'active' || item.status === 'return_requested') && (
             <button
               type="button"
               disabled={actionLoading}
               onClick={() => triggerAction('complete_return', item)}
-              title="Selesaikan Transaksi & Terima Unit (Deposit Otomatis Dikembalikan)"
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs disabled:opacity-50"
+              title="Terima Motor & Selesaikan Sewa (Deposit Otomatis Dikembalikan)"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs disabled:opacity-50"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Selesaikan & Terima Motor</span>
+              <span>Terima Motor & Selesaikan Sewa</span>
             </button>
           )}
 

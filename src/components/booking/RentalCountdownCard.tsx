@@ -59,18 +59,14 @@ export const computeRentalTimer = (
       ? `${d} hari ${pad(h)}:${pad(m)}:${pad(s)}`
       : `${pad(h)}:${pad(m)}:${pad(s)}`;
 
-  // Grace period 15 minutes before charging hourly late fee, matching backend returnService
-  const lateMinutes = isOverdue ? Math.floor(absMs / (1000 * 60)) : 0;
-  const lateHours = lateMinutes > 15 ? Math.ceil(lateMinutes / 60) : 0;
+  // Logika Waktu & Denda Ala Billing Warnet:
+  // - Selama sisa waktu > 0: Denda = Rp 0, deposit kembali 100% utuh
+  // - Begitu melewati batas waktu (diffMs < 0): terhitung terlambat dan argo denda berjalan per jam
+  const lateMinutes = isOverdue ? Math.max(1, Math.floor(absMs / (1000 * 60))) : 0;
+  const lateHours = isOverdue ? Math.max(1, Math.ceil(lateMinutes / 60)) : 0;
 
-  let estimatedLateFee = 0;
-  if (lateHours > 0 && pricePerDay > 0) {
-    const hourlyFee = Math.round(pricePerDay * (lateFeePercentPerHour / 100));
-    const fullDaysLate = Math.floor(lateHours / 24);
-    const remHours = lateHours % 24;
-    const remFee = Math.min(remHours * hourlyFee, pricePerDay);
-    estimatedLateFee = fullDaysLate * pricePerDay + remFee;
-  }
+  const hourlyFee = pricePerDay > 0 ? Math.round(pricePerDay * (lateFeePercentPerHour / 100)) : 0;
+  const estimatedLateFee = lateHours * hourlyFee;
 
   return {
     hasHandover: true,
@@ -80,6 +76,7 @@ export const computeRentalTimer = (
     isOverdue,
     lateMinutes,
     lateHours,
+    hourlyFee,
     estimatedLateFee,
     formattedCountdown,
   };
@@ -210,7 +207,7 @@ export const RentalCountdownCard: React.FC<RentalCountdownCardProps> = ({
               : 'bg-emerald-600 text-white'
           }`}
         >
-          {timer.isOverdue ? 'LEWAT BATAS WAKTU' : 'AKTIF BERJALAN'}
+          {timer.isOverdue ? 'ARGO DENDA BERJALAN' : 'AKTIF BERJALAN'}
         </span>
       </div>
 
@@ -248,8 +245,8 @@ export const RentalCountdownCard: React.FC<RentalCountdownCardProps> = ({
                 : 'bg-emerald-100/60 border-emerald-300'
           }`}
         >
-          <div className={`text-[11px] font-medium ${timer.isOverdue ? 'text-red-500' : 'text-emerald-600'}`}>
-            {timer.isOverdue ? 'Waktu Keterlambatan' : 'Sisa Waktu Sewa'}
+          <div className={`text-[11px] font-medium ${timer.isOverdue ? 'text-red-600 font-bold' : 'text-emerald-600'}`}>
+            {timer.isOverdue ? 'Argo Denda Berjalan' : 'Sisa Waktu Sewa'}
           </div>
           <div
             className={`text-base font-mono font-extrabold mt-0.5 ${
@@ -262,8 +259,13 @@ export const RentalCountdownCard: React.FC<RentalCountdownCardProps> = ({
                   : 'text-emerald-800'
             }`}
           >
-            {timer.isOverdue ? `+ ${timer.formattedCountdown}` : timer.formattedCountdown}
+            {timer.isOverdue ? formatRupiah(timer.estimatedLateFee) : timer.formattedCountdown}
           </div>
+          {timer.isOverdue && (
+            <div className="text-[10px] text-red-600 mt-0.5">
+              +{timer.formattedCountdown} ({timer.lateHours} jam berjalan)
+            </div>
+          )}
         </div>
       </div>
 
@@ -278,16 +280,16 @@ export const RentalCountdownCard: React.FC<RentalCountdownCardProps> = ({
           <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
           <div className="text-xs space-y-1 flex-1">
             <div className="font-bold text-sm">
-              Peringatan Keterlambatan Pengembalian Motor
+              Billing Keterlambatan Ala Warnet Aktif (+{timer.formattedCountdown})
             </div>
             <p>
-              Batas waktu sewa 24 jam telah terlewati. Denda keterlambatan berlaku sebesar{' '}
-              <strong>{lateFeePercentPerHour}% per jam</strong> dari harga sewa harian (toleransi 15 menit).
+              Batas waktu sewa 24 jam telah terlewati. Denda keterlambatan berjalan sebesar{' '}
+              <strong>10% × harga sewa harian ({formatRupiah(timer.hourlyFee)}/jam berjalan)</strong>.
             </p>
             {pricePerDay > 0 && (
               <div className="pt-1 font-bold text-sm">
-                Estimasi Denda Saat Ini ({timer.lateHours} jam):{' '}
-                <span className="underline">{formatRupiah(timer.estimatedLateFee)}</span>
+                Total Denda Berjalan ({timer.lateHours} jam):{' '}
+                <span className="underline">{formatRupiah(timer.estimatedLateFee)}</span> (otomatis dipotong dari uang deposit saat pengembalian).
               </div>
             )}
           </div>
