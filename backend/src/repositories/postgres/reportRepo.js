@@ -215,7 +215,7 @@ const reportRepo = {
 
       const kpis = kpisRes.rows[0];
 
-      // Pendapatan bulan ini vs bulan lalu
+      // Pendapatan bulan ini vs bulan lalu (Single source of truth)
       const revRes = await db.query(
         `WITH months AS (
            SELECT
@@ -225,6 +225,8 @@ const reportRepo = {
          monthly_data AS (
            SELECT
              to_char(COALESCE(b.paid_at, b.created_at) AT TIME ZONE 'Asia/Jakarta', 'YYYY-MM') AS ym,
+             SUM(GREATEST(0, b.subtotal - b.refund_amount))::int AS motor_rental_rev,
+             SUM(COALESCE(b.addons_total, 0) + COALESCE(b.delivery_total, 0) + COALESCE(br.late_fee, 0) + COALESCE(br.damage_fee, 0) + COALESCE(br.other_fee, 0))::int AS other_rev,
              SUM(b.rental_total - b.refund_amount + COALESCE(br.late_fee, 0) + COALESCE(br.damage_fee, 0) + COALESCE(br.other_fee, 0))::int AS net_rev
            FROM bookings b
            LEFT JOIN booking_returns br ON br.booking_id = b.id
@@ -234,7 +236,11 @@ const reportRepo = {
          )
          SELECT
            COALESCE((SELECT net_rev FROM monthly_data, months WHERE ym = cur_month), 0)::int AS "monthlyRevenue",
-           COALESCE((SELECT net_rev FROM monthly_data, months WHERE ym = prev_month), 0)::int AS "prevMonthRevenue"`
+           COALESCE((SELECT motor_rental_rev FROM monthly_data, months WHERE ym = cur_month), 0)::int AS "monthlyMotorRentalRevenue",
+           COALESCE((SELECT other_rev FROM monthly_data, months WHERE ym = cur_month), 0)::int AS "monthlyOtherRevenue",
+           COALESCE((SELECT net_rev FROM monthly_data, months WHERE ym = prev_month), 0)::int AS "prevMonthRevenue",
+           COALESCE((SELECT motor_rental_rev FROM monthly_data, months WHERE ym = prev_month), 0)::int AS "prevMonthMotorRentalRevenue",
+           COALESCE((SELECT other_rev FROM monthly_data, months WHERE ym = prev_month), 0)::int AS "prevMonthOtherRevenue"`
       );
 
       const monthlyRevenue = revRes.rows[0].monthlyRevenue;
@@ -280,6 +286,9 @@ const reportRepo = {
       return {
         ...kpis,
         monthlyRevenue,
+        monthlyMotorRentalRevenue: revRes.rows[0].monthlyMotorRentalRevenue || 0,
+        monthlyOtherRevenue: revRes.rows[0].monthlyOtherRevenue || 0,
+        prevMonthRevenue,
         revenueGrowthPercent,
         occupancyRate30Days,
       };

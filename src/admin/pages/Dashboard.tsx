@@ -36,6 +36,7 @@ import { ChartCard } from '../components/ChartCard';
 import { StatusBadge } from '../components/StatusBadge';
 import { formatPrice } from '../../utils/formatPrice';
 import { formatDate } from '../../utils/formatDate';
+import { formatGrowthPercentage } from '../utils/revenue';
 import { useAdminAuth } from '../hooks/useAdminAuth';
 import { useRealtimeSubscription } from '../../hooks/useRealtimeSubscription';
 import { useRealtime } from '../../context/RealtimeContext';
@@ -49,6 +50,12 @@ export const Dashboard: React.FC = () => {
   const [recentBookings, setRecentBookings] = useState<AdminBooking[]>([]);
   const [gpsSummary, setGpsSummary] = useState<{ onlineCount: number; offlineCount: number; alertsCount: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const revenueGrowth = React.useMemo(() => {
+    const cur = stats?.revenueThisMonth ?? stats?.revenueTotal ?? 0;
+    const prev = stats?.prevMonthRevenue ?? stats?.revenueLastMonth ?? 0;
+    return formatGrowthPercentage(cur, prev);
+  }, [stats]);
 
   const fetchDashboard = React.useCallback(async () => {
     try {
@@ -219,8 +226,8 @@ export const Dashboard: React.FC = () => {
           title="Pendapatan Bulan Ini"
           value={stats ? formatPrice(stats.revenueThisMonth ?? stats.revenueTotal ?? 0) : 'Rp 0'}
           icon={DollarSign}
-          change={`+${stats?.revenueGrowthPercent || 18.2}% vs bln lalu`}
-          isPositive={true}
+          change={revenueGrowth.text}
+          isPositive={revenueGrowth.isPositive}
           subtitle="Omzet rental terkonfirmasi"
           color="success"
           onClick={() => navigate('/admin/reports')}

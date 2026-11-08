@@ -26,3 +26,4 @@ BEGIN
     USING ERRCODE = 'RM001';
 END;
 $$ LANGUAGE plpgsql;
+

@@ -1116,14 +1116,6 @@
       "endDate": "2026-10-06",
       "technician": "Pak Ketut",
       "status": "completed"
-    },
-    {
-      "id": 7777,
-      "motorId": 1,
-      "startDate": "2026-12-01",
-      "endDate": "2026-12-05",
-      "status": "scheduled",
-      "reason": "Servis rutin berkala"
     }
   ],
   "promos": [
@@ -1152,6 +1144,16 @@
       "validUntil": "2027-12-31",
       "quota": 500,
       "description": "Potongan Rp 20.000 untuk sewa yang mencakup hari Sabtu atau Minggu"
+    },
+    {
+      "id": 995,
+      "code": "MAXCAP",
+      "type": "percent",
+      "value": 50,
+      "maxDiscount": 50000,
+      "validUntil": "2030-01-01",
+      "quota": 10,
+      "isActive": true
     }
   ],
   "favorites": [

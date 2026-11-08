@@ -25,6 +25,11 @@ import { StatCard } from '../components/StatCard';
 import { ChartCard } from '../components/ChartCard';
 import { CsvButton } from '../components/CsvButton';
 import { formatPrice } from '../../utils/formatPrice';
+import {
+  calculateBookingRevenue,
+  formatGrowthPercentage,
+  formatYAxisRevenue,
+} from '../utils/revenue';
 
 import { usePermission } from '../hooks/usePermission';
 import { Link } from 'react-router-dom';
@@ -87,12 +92,33 @@ export const Reports: React.FC = () => {
     ];
   }, [bookings]);
 
-  // Aggregate motor performance & occupancy
+  // Aggregate motor performance & occupancy (Single Source of Truth)
   const motorPerformance = useMemo(() => {
-    const map: Record<string, { id: string; name: string; plate: string; count: number; totalDays: number; revenue: number }> = {};
+    const map: Record<
+      string,
+      {
+        id: string;
+        name: string;
+        plate: string;
+        count: number;
+        totalDays: number;
+        motorRentalRevenue: number;
+        otherRevenue: number;
+        revenue: number;
+      }
+    > = {};
 
     motors.forEach((m) => {
-      map[m.id] = { id: m.id, name: m.name, plate: m.plate || '-', count: 0, totalDays: 0, revenue: 0 };
+      map[m.id] = {
+        id: m.id,
+        name: m.name,
+        plate: m.plate || '-',
+        count: 0,
+        totalDays: 0,
+        motorRentalRevenue: 0,
+        otherRevenue: 0,
+        revenue: 0,
+      };
     });
 
     bookings.forEach((b) => {
@@ -104,6 +130,8 @@ export const Reports: React.FC = () => {
           plate: '-',
           count: 0,
           totalDays: 0,
+          motorRentalRevenue: 0,
+          otherRevenue: 0,
           revenue: 0,
         };
       }
@@ -118,19 +146,50 @@ export const Reports: React.FC = () => {
       );
       map[motorId].totalDays += dur;
 
-      // Definisi Pendapatan: confirmed/active/completed minus refund plus denda/damage/other
+      // Definisi Pendapatan: confirmed/active/completed minus refund plus add-ons & denda (Deposit tidak dihitung)
       if (['confirmed', 'active', 'completed'].includes(b.status)) {
-        const rentalTotal = b.subtotal ?? (b.total ?? b.totalPrice ?? 0);
-        const refund = b.refundAmount || 0;
-        const late = b.lateFee || 0;
-        const damage = b.damageFee || 0;
-        const other = b.otherFee || 0;
-        map[motorId].revenue += rentalTotal - refund + late + damage + other;
+        const itemRev = calculateBookingRevenue(b);
+        map[motorId].motorRentalRevenue += itemRev.motorRentalRevenue;
+        map[motorId].otherRevenue += itemRev.otherRevenue;
+        map[motorId].revenue += itemRev.totalNetRevenue;
       }
     });
 
     return Object.values(map).sort((a, b) => b.revenue - a.revenue);
   }, [motors, bookings]);
+
+  // Total Verified Revenue Summary (Sewa Motor vs Lainnya vs Bersih)
+  const totalRevSummary = useMemo(() => {
+    return motorPerformance.reduce(
+      (acc, m) => {
+        acc.motorRentalRevenue += m.motorRentalRevenue;
+        acc.otherRevenue += m.otherRevenue;
+        acc.totalNetRevenue += m.revenue;
+        return acc;
+      },
+      { motorRentalRevenue: 0, otherRevenue: 0, totalNetRevenue: 0 }
+    );
+  }, [motorPerformance]);
+
+  // Persentase pertumbuhan dinamis (% vs bln lalu)
+  const growth = useMemo(() => {
+    const cur = totalRevSummary.totalNetRevenue;
+    const prev = stats?.prevMonthRevenue ?? stats?.revenueLastMonth ?? 0;
+    return formatGrowthPercentage(cur, prev);
+  }, [totalRevSummary.totalNetRevenue, stats]);
+
+  // Sinkronisasi data grafik Tren Pertumbuhan Pendapatan (Bulanan)
+  const chartData = useMemo(() => {
+    if (stats?.monthlyRevenue && stats.monthlyRevenue.length > 0) {
+      return stats.monthlyRevenue.map((item) => {
+        if (item.month === 'Bulan Ini') {
+          return { ...item, revenue: totalRevSummary.totalNetRevenue };
+        }
+        return item;
+      });
+    }
+    return [{ month: 'Bulan Ini', revenue: totalRevSummary.totalNetRevenue }];
+  }, [stats?.monthlyRevenue, totalRevSummary.totalNetRevenue]);
 
   // Average duration
   const avgDuration = useMemo(() => {
@@ -147,11 +206,6 @@ export const Reports: React.FC = () => {
     }, 0);
     return (totalDays / bookings.length).toFixed(1);
   }, [bookings]);
-
-  // Total Verified Revenue
-  const totalRev = useMemo(() => {
-    return motorPerformance.reduce((acc, m) => acc + m.revenue, 0);
-  }, [motorPerformance]);
 
   if (role !== 'admin') {
     return (
@@ -228,7 +282,9 @@ export const Reports: React.FC = () => {
               { header: 'Plat Nomor', accessor: (m) => m.plate },
               { header: 'Frekuensi Sewa', accessor: (m) => m.count },
               { header: 'Total Hari Tersewa', accessor: (m) => m.totalDays },
-              { header: 'Pendapatan Bersih (Rp)', accessor: (m) => m.revenue },
+              { header: 'Sewa Motor Pokok (Rp)', accessor: (m) => m.motorRentalRevenue },
+              { header: 'Pendapatan Lainnya (Rp)', accessor: (m) => m.otherRevenue },
+              { header: 'Total Pendapatan Bersih (Rp)', accessor: (m) => m.revenue },
             ]}
             filename={`laporan-rental-${groupBy}-${new Date().toISOString().split('T')[0]}.csv`}
             label="Ekspor CSV"
@@ -240,10 +296,21 @@ export const Reports: React.FC = () => {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Total Pendapatan Bersih"
-          value={formatPrice(totalRev)}
+          value={formatPrice(totalRevSummary.totalNetRevenue)}
           icon={DollarSign}
-          change="+18.2% vs bln lalu"
-          subtitle="Sesuai rumus pendapatan resmi"
+          change={growth.text}
+          isPositive={growth.isPositive}
+          subtitle={
+            <div className="mt-1 space-y-0.5 text-xs text-gray-500 font-medium">
+              <div>
+                Sewa Motor: <span className="font-semibold text-gray-700">{formatPrice(totalRevSummary.motorRentalRevenue)}</span>
+              </div>
+              <div>
+                Pendapatan Lainnya (Layanan & Denda):{' '}
+                <span className="font-semibold text-gray-700">{formatPrice(totalRevSummary.otherRevenue)}</span>
+              </div>
+            </div>
+          }
           color="success"
         />
         <StatCard
@@ -279,7 +346,7 @@ export const Reports: React.FC = () => {
         >
           <div className="h-64 w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={stats?.monthlyRevenue || []} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorRevRep" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#0B1F3A" stopOpacity={0.8} />
@@ -290,7 +357,7 @@ export const Reports: React.FC = () => {
                 <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#6B7280' }} />
                 <YAxis
                   tick={{ fontSize: 11, fill: '#6B7280' }}
-                  tickFormatter={(v) => `${(v / 1000000).toFixed(0)}jt`}
+                  tickFormatter={formatYAxisRevenue}
                 />
                 <Tooltip
                   formatter={(value: any) => [formatPrice(Number(value)), 'Pendapatan']}
@@ -336,11 +403,13 @@ export const Reports: React.FC = () => {
       <div className="bg-blue-50/70 border border-blue-200 rounded-2xl p-4 flex items-start gap-3">
         <Info className="w-5 h-5 text-blue-800 flex-shrink-0 mt-0.5" />
         <div className="text-xs text-blue-950 leading-relaxed">
-          <strong className="font-bold">Definisi Resmi Pendapatan Rental:</strong>{' '}
-          rental_total booking berstatus <code>confirmed</code>, <code>active</code>, dan <code>completed</code> dikurangi{' '}
-          <code>refund_amount</code> ditambah denda keterlambatan, biaya kerusakan, dan biaya lain-lain.{' '}
+          <strong className="font-bold">Definisi Pendapatan Bersih:</strong>{' '}
+          Total tarif sewa motor ditambah layanan tambahan & denda (keterlambatan/kerusakan) dikurangi refund dari pesanan berstatus{' '}
+          <span className="font-semibold text-blue-900">Dikonfirmasi</span>,{' '}
+          <span className="font-semibold text-blue-900">Aktif Sewa</span>, dan{' '}
+          <span className="font-semibold text-blue-900">Selesai</span>.{' '}
           <span className="font-bold underline text-blue-900">UANG DEPOSIT TIDAK DIHITUNG SEBAGAI PENDAPATAN</span>{' '}
-          karena merupakan dana titipan jaminan yang dikembalikan kepada penyewa saat masa sewa berakhir.
+          karena merupakan dana titipan jaminan yang dikembalikan kepada penyewa.
         </div>
       </div>
 
@@ -364,7 +433,9 @@ export const Reports: React.FC = () => {
                 <th className="px-4 py-3">Plat Nomor</th>
                 <th className="px-4 py-3 text-center">Frekuensi Sewa</th>
                 <th className="px-4 py-3 text-center">Hari Tersewa</th>
-                <th className="px-4 py-3 text-right">Pendapatan Bersih</th>
+                <th className="px-4 py-3 text-right">Sewa Motor Pokok</th>
+                <th className="px-4 py-3 text-right">Layanan & Denda</th>
+                <th className="px-4 py-3 text-right">Total Pendapatan Bersih</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -378,6 +449,12 @@ export const Reports: React.FC = () => {
                   </td>
                   <td className="px-4 py-3 text-center font-semibold text-gray-700">
                     {item.totalDays} Hari
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium text-gray-700">
+                    {formatPrice(item.motorRentalRevenue)}
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium text-gray-700">
+                    {formatPrice(item.otherRevenue)}
                   </td>
                   <td className="px-4 py-3 text-right font-black text-emerald-700">
                     {formatPrice(item.revenue)}

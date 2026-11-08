@@ -3,11 +3,11 @@ import { type LucideIcon, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 
 interface StatCardProps {
   title: string;
-  value: string | number;
+  value: React.ReactNode;
   icon: LucideIcon;
   change?: string;
   isPositive?: boolean;
-  subtitle?: string;
+  subtitle?: React.ReactNode;
   color?: 'primary' | 'success' | 'warning' | 'danger' | 'info';
   onClick?: () => void;
 }
@@ -44,25 +44,35 @@ export const StatCard: React.FC<StatCardProps> = ({
         </div>
       </div>
 
-      <div className="mt-3 flex items-baseline gap-2">
-        <span className="text-2xl font-bold text-gray-900 tracking-tight">{value}</span>
+      <div className="mt-3">
+        <div className="text-2xl font-bold text-gray-900 tracking-tight whitespace-nowrap overflow-hidden text-ellipsis">
+          {value}
+        </div>
         {change && (
-          <span
-            className={`inline-flex items-center text-xs font-semibold ${
-              isPositive ? 'text-emerald-600' : 'text-rose-600'
-            }`}
-          >
-            {isPositive ? (
-              <ArrowUpRight className="w-3.5 h-3.5 mr-0.5" />
-            ) : (
-              <ArrowDownRight className="w-3.5 h-3.5 mr-0.5" />
-            )}
-            {change}
-          </span>
+          <div className="mt-1 flex items-center">
+            <span
+              className={`inline-flex items-center text-xs font-semibold ${
+                isPositive ? 'text-emerald-600' : 'text-rose-600'
+              }`}
+            >
+              {isPositive ? (
+                <ArrowUpRight className="w-3.5 h-3.5 mr-0.5 flex-shrink-0" />
+              ) : (
+                <ArrowDownRight className="w-3.5 h-3.5 mr-0.5 flex-shrink-0" />
+              )}
+              {change}
+            </span>
+          </div>
         )}
       </div>
 
-      {subtitle && <p className="mt-1 text-xs text-gray-500">{subtitle}</p>}
+      {subtitle && (
+        typeof subtitle === 'string' ? (
+          <p className="mt-1.5 text-xs text-gray-500">{subtitle}</p>
+        ) : (
+          <div className="mt-1.5">{subtitle}</div>
+        )
+      )}
     </div>
   );
 };

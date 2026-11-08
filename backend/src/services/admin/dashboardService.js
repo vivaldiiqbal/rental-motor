@@ -47,8 +47,7 @@ const dashboardService = {
       return nowWib > scheduled;
     }).length;
 
-    // 7. Pendapatan bulan ini vs bulan lalu
-    // Definisi resmi: rental_total booking confirmed/active/completed - refund + denda + kerusakan + biaya lain
+    // 7. Pendapatan bulan ini vs bulan lalu (Single source of truth)
     const curMonthPrefix = todayStr.slice(0, 7); // YYYY-MM
     const prevMonthDate = new Date(nowWib.getFullYear(), nowWib.getMonth() - 1, 1);
     const prevMonthPrefix = prevMonthDate.toISOString().slice(0, 7);
@@ -59,18 +58,43 @@ const dashboardService = {
           const dateStr = b.paidAt || b.createdAt || '';
           return dateStr.startsWith(prefix) && ['confirmed', 'active', 'completed'].includes(b.status);
         })
-        .reduce((sum, b) => {
-          const rental = Number(b.rentalTotal || b.subtotal || b.totalPrice || (b.total - (b.deposit || 0))) || 0;
-          const refund = Number(b.refundAmount) || 0;
-          const late = Number(b.lateFee) || 0;
-          const damage = Number(b.damageFee) || 0;
-          const other = Number(b.otherFee) || 0;
-          return sum + rental - refund + late + damage + other;
-        }, 0);
+        .reduce(
+          (acc, b) => {
+            const addOns = Number(b.addOnsTotal ?? b.addonsTotal ?? 0);
+            const delivery = Number(b.deliveryTotal ?? b.deliveryFee ?? 0);
+            const late = Number(b.lateFee ?? b.returnInfo?.lateFee ?? 0);
+            const damage = Number(b.damageFee ?? b.returnInfo?.damageFee ?? 0);
+            const other = Number(b.otherFee ?? b.returnInfo?.otherFee ?? 0);
+
+            const rawSubtotal =
+              b.subtotal !== undefined && b.subtotal !== null
+                ? Number(b.subtotal)
+                : Math.max(0, Number(b.rentalTotal ?? b.totalPrice ?? b.total ?? 0) - addOns - delivery);
+            const refund = Number(b.refundAmount || 0);
+
+            const motorRental = Math.max(0, rawSubtotal - refund);
+            const otherRevenue = Math.max(0, addOns + late + damage + other + delivery);
+            const totalNet = motorRental + otherRevenue;
+
+            acc.motorRentalRevenue += motorRental;
+            acc.otherRevenue += otherRevenue;
+            acc.totalNetRevenue += totalNet;
+            return acc;
+          },
+          { motorRentalRevenue: 0, otherRevenue: 0, totalNetRevenue: 0 }
+        );
     };
 
-    const monthlyRevenue = calculateMonthRevenue(curMonthPrefix);
-    const prevMonthRevenue = calculateMonthRevenue(prevMonthPrefix);
+    const curMonthRev = calculateMonthRevenue(curMonthPrefix);
+    const prevMonthRev = calculateMonthRevenue(prevMonthPrefix);
+
+    const monthlyRevenue = curMonthRev.totalNetRevenue;
+    const monthlyMotorRentalRevenue = curMonthRev.motorRentalRevenue;
+    const monthlyOtherRevenue = curMonthRev.otherRevenue;
+
+    const prevMonthRevenue = prevMonthRev.totalNetRevenue;
+    const prevMonthMotorRentalRevenue = prevMonthRev.motorRentalRevenue;
+    const prevMonthOtherRevenue = prevMonthRev.otherRevenue;
 
     let revenueGrowthPercent = 0;
     if (prevMonthRevenue > 0) {
@@ -112,6 +136,9 @@ const dashboardService = {
       pendingDocuments,
       overdueRentals,
       monthlyRevenue,
+      monthlyMotorRentalRevenue,
+      monthlyOtherRevenue,
+      prevMonthRevenue,
       revenueGrowthPercent,
       occupancyRate30Days,
     };

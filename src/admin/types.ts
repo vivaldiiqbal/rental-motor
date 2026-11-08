@@ -281,6 +281,9 @@ export interface ReportSummary {
   revenueTotal: number;
   revenueThisMonth: number;
   revenueLastMonth?: number;
+  prevMonthRevenue?: number;
+  monthlyMotorRentalRevenue?: number;
+  monthlyOtherRevenue?: number;
   revenueGrowthPercent: number;
   bookingsTotal: number;
   bookingsThisMonth: number;

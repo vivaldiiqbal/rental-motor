@@ -347,6 +347,9 @@ export const adminApi = {
         const pendingDocsCount = Number(summary.pendingDocuments) || 0;
         const overdueBookingsCount = Number(summary.overdueRentals) || 0;
         const revenueThisMonth = Number(summary.monthlyRevenue) || 0;
+        const prevMonthRevenue = Number(summary.prevMonthRevenue) || 0;
+        const monthlyMotorRentalRevenue = Number(summary.monthlyMotorRentalRevenue) || 0;
+        const monthlyOtherRevenue = Number(summary.monthlyOtherRevenue) || 0;
         const revenueGrowthPercent = Number(summary.revenueGrowthPercent) || 0;
         const occupancyRate = Number(summary.occupancyRate30Days) || 0;
 
@@ -426,6 +429,10 @@ export const adminApi = {
             revenueTotal: revenueThisMonth,
             totalRevenue: revenueThisMonth,
             revenueThisMonth,
+            revenueLastMonth: prevMonthRevenue,
+            prevMonthRevenue,
+            monthlyMotorRentalRevenue,
+            monthlyOtherRevenue,
             revenueGrowthPercent,
             bookingsTotal: allBookings.length,
             bookingsThisMonth: allBookings.length,
@@ -578,12 +585,22 @@ export const adminApi = {
       });
     });
 
+    const revThisMonth = Math.round(revenueTotal * 0.52);
+    const revLastMonth = Math.round(revenueTotal * 0.44);
+    let dynamicGrowthPercent = 0;
+    if (revLastMonth > 0) {
+      dynamicGrowthPercent = Number((((revThisMonth - revLastMonth) / revLastMonth) * 100).toFixed(1));
+    } else if (revThisMonth > 0) {
+      dynamicGrowthPercent = 100;
+    }
+
     const report: ReportSummary = {
       revenueTotal,
       totalRevenue: revenueTotal,
-      revenueThisMonth: Math.round(revenueTotal * 0.52),
-      revenueLastMonth: Math.round(revenueTotal * 0.44),
-      revenueGrowthPercent: 18.2,
+      revenueThisMonth: revThisMonth,
+      revenueLastMonth: revLastMonth,
+      prevMonthRevenue: revLastMonth,
+      revenueGrowthPercent: dynamicGrowthPercent,
       bookingsTotal: store.bookings.length,
       bookingsThisMonth: store.bookings.filter((b) => b.createdAt.startsWith('2026-10')).length,
       activeRentalsCount: activeBookings.length,
